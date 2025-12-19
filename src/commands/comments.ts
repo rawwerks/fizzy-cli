@@ -136,11 +136,15 @@ async function updateComment(cardNumber: string, commentId: string, options: { b
       accountSlug: auth.account.account_slug,
     });
 
-    const commentData = await client.put(`cards/${cardNumber}/comments/${commentId}`, {
+    // PUT returns 204 No Content, so we need to fetch the comment after update
+    await client.put(`cards/${cardNumber}/comments/${commentId}`, {
       comment: {
         body: options.body,
       },
     });
+
+    // Fetch the updated comment
+    const commentData = await client.get(`cards/${cardNumber}/comments/${commentId}`);
     const comment = parseApiResponse(CommentSchema, commentData, 'update comment');
     const format = detectFormat(options);
 
@@ -191,22 +195,21 @@ async function addReaction(cardNumber: string, commentId: string, emoji: string,
       accountSlug: auth.account.account_slug,
     });
 
-    const reactionData = await client.post(`cards/${cardNumber}/comments/${commentId}/reactions`, {
+    // POST returns 201 with no body, so we just confirm success
+    await client.post(`cards/${cardNumber}/comments/${commentId}/reactions`, {
       reaction: {
         content: emoji,
       },
     });
-    const reaction = parseApiResponse(ReactionSchema, reactionData, 'create reaction');
     const format = detectFormat(options);
 
     if (format === 'json') {
-      printOutput(reaction, format);
+      printOutput({ success: true, content: emoji, commentId }, format);
     } else {
       console.log(chalk.green('✓ Reaction added successfully'));
       console.log();
-      console.log(`${chalk.bold('ID:')} ${reaction.id}`);
-      console.log(`${chalk.bold('Content:')} ${reaction.content}`);
-      console.log(`${chalk.bold('Reacter:')} ${reaction.reacter.name}`);
+      console.log(`${chalk.bold('Content:')} ${emoji}`);
+      console.log(`${chalk.bold('Comment ID:')} ${commentId}`);
     }
   } catch (error) {
     printError(error instanceof Error ? error : new Error('Failed to add reaction'));

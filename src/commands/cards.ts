@@ -104,9 +104,18 @@ async function listCards(options: ListOptions): Promise<void> {
 }
 
 /**
+ * Check if a string looks like a card ID (alphanumeric, 20+ chars) vs a number
+ */
+function isCardId(value: string): boolean {
+  // Card IDs are base36-encoded UUIDs, typically 25 chars, alphanumeric
+  // Card numbers are purely numeric
+  return /^[a-z0-9]{20,}$/i.test(value) && !/^\d+$/.test(value);
+}
+
+/**
  * Get card details command
  */
-async function getCard(cardNumber: string, options: BaseOptions): Promise<void> {
+async function getCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -114,7 +123,20 @@ async function getCard(cardNumber: string, options: BaseOptions): Promise<void> 
       accountSlug: auth.account.account_slug,
     });
 
-    const rawCard = await client.get<Card>(`cards/${cardNumber}`);
+    let rawCard: Card;
+
+    if (isCardId(cardIdentifier)) {
+      // Fetch by ID using the filter endpoint
+      const cards = await client.get<Card[]>(`cards?card_ids[]=${cardIdentifier}`);
+      if (cards.length === 0) {
+        throw new Error(`Card with ID "${cardIdentifier}" not found`);
+      }
+      rawCard = cards[0];
+    } else {
+      // Fetch by number using the direct endpoint
+      rawCard = await client.get<Card>(`cards/${cardIdentifier}`);
+    }
+
     const card = parseApiResponse(CardSchema, rawCard, 'card details');
     const format = detectFormat(options);
 
@@ -196,9 +218,24 @@ async function createCard(options: CreateOptions): Promise<void> {
 }
 
 /**
+ * Resolve card identifier to card number (for API endpoints that require number)
+ */
+async function resolveCardNumber(client: ReturnType<typeof createClient>, identifier: string): Promise<string> {
+  if (isCardId(identifier)) {
+    // Need to look up the card number from the ID
+    const cards = await client.get<Card[]>(`cards?card_ids[]=${identifier}`);
+    if (cards.length === 0) {
+      throw new Error(`Card with ID "${identifier}" not found`);
+    }
+    return String(cards[0].number);
+  }
+  return identifier;
+}
+
+/**
  * Update card command
  */
-async function updateCard(cardNumber: string, options: UpdateOptions): Promise<void> {
+async function updateCard(cardIdentifier: string, options: UpdateOptions): Promise<void> {
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -224,6 +261,9 @@ async function updateCard(cardNumber: string, options: UpdateOptions): Promise<v
       printError(new Error('No update parameters provided. Use --title, --description, or --status'));
       process.exit(1);
     }
+
+    // Resolve ID to number if needed (API uses card number for updates)
+    const cardNumber = await resolveCardNumber(client, cardIdentifier);
 
     const rawCard = await client.put<Card>(
       `cards/${cardNumber}`,
@@ -253,7 +293,7 @@ async function updateCard(cardNumber: string, options: UpdateOptions): Promise<v
 /**
  * Delete card command
  */
-async function deleteCard(cardNumber: string, options: BaseOptions): Promise<void> {
+async function deleteCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -261,6 +301,7 @@ async function deleteCard(cardNumber: string, options: BaseOptions): Promise<voi
       accountSlug: auth.account.account_slug,
     });
 
+    const cardNumber = await resolveCardNumber(client, cardIdentifier);
     await client.delete(`cards/${cardNumber}`);
     const format = detectFormat(options);
 
@@ -278,7 +319,7 @@ async function deleteCard(cardNumber: string, options: BaseOptions): Promise<voi
 /**
  * Close card command
  */
-async function closeCard(cardNumber: string, options: BaseOptions): Promise<void> {
+async function closeCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -286,6 +327,7 @@ async function closeCard(cardNumber: string, options: BaseOptions): Promise<void
       accountSlug: auth.account.account_slug,
     });
 
+    const cardNumber = await resolveCardNumber(client, cardIdentifier);
     await client.post(`cards/${cardNumber}/closure`, {});
     const format = detectFormat(options);
 
@@ -303,7 +345,7 @@ async function closeCard(cardNumber: string, options: BaseOptions): Promise<void
 /**
  * Reopen card command
  */
-async function reopenCard(cardNumber: string, options: BaseOptions): Promise<void> {
+async function reopenCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -311,6 +353,7 @@ async function reopenCard(cardNumber: string, options: BaseOptions): Promise<voi
       accountSlug: auth.account.account_slug,
     });
 
+    const cardNumber = await resolveCardNumber(client, cardIdentifier);
     await client.delete(`cards/${cardNumber}/closure`);
     const format = detectFormat(options);
 
@@ -328,7 +371,7 @@ async function reopenCard(cardNumber: string, options: BaseOptions): Promise<voi
 /**
  * Move card command
  */
-async function moveCard(cardNumber: string, options: MoveOptions): Promise<void> {
+async function moveCard(cardIdentifier: string, options: MoveOptions): Promise<void> {
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -336,6 +379,7 @@ async function moveCard(cardNumber: string, options: MoveOptions): Promise<void>
       accountSlug: auth.account.account_slug,
     });
 
+    const cardNumber = await resolveCardNumber(client, cardIdentifier);
     await client.post(`cards/${cardNumber}/triage`, {
       column_id: options.column,
     });

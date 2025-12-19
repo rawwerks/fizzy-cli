@@ -107,7 +107,6 @@ export async function runCli(args?: string[]): Promise<void> {
     .name('fizzy')
     .description('Command-line interface for Fizzy API')
     .version(packageJson.version)
-    .option('--json', 'Output in JSON format')
     .option('--account <slug>', 'Use specific Fizzy account')
     .option('--verbose', 'Enable verbose output')
     .option('--quiet', 'Suppress non-essential output')
