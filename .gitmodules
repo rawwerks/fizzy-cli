@@ -1,0 +1,3 @@
+[submodule "fizzy-api"]
+	path = fizzy-api
+	url = https://github.com/basecamp/fizzy.git
