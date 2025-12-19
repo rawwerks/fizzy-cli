@@ -1,0 +1,24 @@
+# Gitleaks configuration for fizzy-cli
+# https://github.com/gitleaks/gitleaks
+
+title = "fizzy-cli gitleaks config"
+
+[allowlist]
+description = "Allowlist for test mock data"
+
+# Allowlist test files with mock tokens
+paths = [
+    '''__tests__/.*\.test\.ts$''',
+    '''__tests__/.*\.test\.js$''',
+]
+
+# Allowlist specific test values
+regexTarget = "match"
+regexes = [
+    '''pending_abc123''',
+    '''test_token_''',
+    '''mock_''',
+]
+
+# Allowlist specific commits if needed
+# commits = []
