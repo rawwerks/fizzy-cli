@@ -5,7 +5,8 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { authenticateWithMagicLink } from '../lib/auth/magic-link.js';
+import { authenticateWithMagicLink, getIdentity } from '../lib/auth/magic-link.js';
+import { getBaseUrl } from '../lib/auth/config.js';
 import {
   loadTokens,
   deleteTokens,
@@ -14,8 +15,40 @@ import {
   setDefaultAccount,
   removeAccount,
   isAuthenticated,
+  saveAccount,
   type StoredAccount,
 } from '../lib/auth/token-storage.js';
+
+/**
+ * Authenticate with a Personal Access Token
+ */
+async function authenticateWithPAT(token: string): Promise<StoredAccount[]> {
+  // Validate token by fetching identity
+  const identity = await getIdentity(token);
+
+  const savedAccounts: StoredAccount[] = [];
+
+  for (const account of identity.accounts) {
+    const storedAccount: StoredAccount = {
+      account_slug: account.slug,
+      account_name: account.name,
+      account_id: account.id,
+      access_token: token,
+      user: {
+        id: account.user.id,
+        name: account.user.name,
+        email_address: account.user.email_address,
+        role: account.user.role,
+      },
+      created_at: new Date().toISOString(),
+    };
+
+    await saveAccount(storedAccount, savedAccounts.length === 0);
+    savedAccounts.push(storedAccount);
+  }
+
+  return savedAccounts;
+}
 
 /**
  * Prompt user for magic link code
@@ -38,60 +71,97 @@ async function promptForCode(): Promise<string> {
 }
 
 /**
- * Login command - Magic link authentication
+ * Login command - PAT or Magic link authentication
  */
 const loginCommand = new Command('login')
-  .description('Authenticate with Fizzy using magic link (passwordless)')
+  .description('Authenticate with Fizzy (PAT recommended, or magic link)')
   .option('--json', 'Output in JSON format')
-  .argument('[email]', 'Email address for authentication')
-  .action(async (email: string | undefined, options: { json?: boolean }) => {
+  .option('--token <token>', 'Personal Access Token (from https://app.fizzy.do/my/access_tokens)')
+  .option('--magic-link', 'Use magic link authentication instead of PAT')
+  .argument('[email]', 'Email address (only for magic link auth)')
+  .action(async (email: string | undefined, options: { json?: boolean; token?: string; magicLink?: boolean }) => {
     const spinner = options.json ? null : ora('Starting authentication...').start();
 
     try {
-      // Get email from argument or prompt
-      let userEmail = email;
-      if (!userEmail) {
-        if (spinner) spinner.stop();
+      let accounts: StoredAccount[];
 
-        const readline = await import('readline');
-        const rl = readline.createInterface({
-          input: process.stdin,
-          output: process.stdout,
-        });
+      // PAT flow (default)
+      if (options.token || !options.magicLink) {
+        let token = options.token;
 
-        userEmail = await new Promise((resolve) => {
-          rl.question(chalk.cyan('Enter your email address: '), (answer) => {
-            rl.close();
-            resolve(answer.trim());
-          });
-        });
-
-        if (spinner) spinner.start('Requesting magic link...');
-      }
-
-      if (!userEmail) {
-        throw new Error('Email address is required');
-      }
-
-      if (spinner) spinner.text = 'Sending magic link email...';
-
-      // Start magic link flow
-      const accounts = await authenticateWithMagicLink(
-        userEmail,
-        async () => {
+        if (!token) {
           if (spinner) spinner.stop();
-          console.log(chalk.green('\nMagic link email sent!'));
-          console.log(chalk.gray('Check your inbox for a 6-character code.'));
+          console.log(chalk.bold('\nPersonal Access Token Authentication\n'));
+          console.log(chalk.gray('1. Go to: ') + chalk.cyan('https://app.fizzy.do/my/access_tokens'));
+          console.log(chalk.gray('2. Create a token with "Read + Write" permission'));
+          console.log(chalk.gray('3. Copy and paste the token below\n'));
 
-          const code = await promptForCode();
+          const readline = await import('readline');
+          const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+          });
 
-          if (spinner) {
-            spinner.start('Verifying code...');
-          }
+          token = await new Promise((resolve) => {
+            rl.question(chalk.cyan('Paste your token: '), (answer) => {
+              rl.close();
+              resolve(answer.trim());
+            });
+          });
 
-          return code;
+          if (spinner) spinner.start('Validating token...');
         }
-      );
+
+        if (!token) {
+          throw new Error('Token is required');
+        }
+
+        accounts = await authenticateWithPAT(token);
+      } else {
+        // Magic link flow
+        let userEmail = email;
+        if (!userEmail) {
+          if (spinner) spinner.stop();
+
+          const readline = await import('readline');
+          const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+          });
+
+          userEmail = await new Promise((resolve) => {
+            rl.question(chalk.cyan('Enter your email address: '), (answer) => {
+              rl.close();
+              resolve(answer.trim());
+            });
+          });
+
+          if (spinner) spinner.start('Requesting magic link...');
+        }
+
+        if (!userEmail) {
+          throw new Error('Email address is required');
+        }
+
+        if (spinner) spinner.text = 'Sending magic link email...';
+
+        accounts = await authenticateWithMagicLink(
+          userEmail,
+          async () => {
+            if (spinner) spinner.stop();
+            console.log(chalk.green('\nMagic link email sent!'));
+            console.log(chalk.gray('Check your inbox for a 6-character code.'));
+
+            const code = await promptForCode();
+
+            if (spinner) {
+              spinner.start('Verifying code...');
+            }
+
+            return code;
+          }
+        );
+      }
 
       if (spinner) spinner.succeed('Authentication successful!');
 

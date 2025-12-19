@@ -97,6 +97,12 @@ export class FizzyClient {
       return path;
     }
 
+    // If path already starts with account slug (e.g., from Location header), use it directly
+    if (path.startsWith(`/${this.accountSlug}/`) || path.startsWith(`${this.accountSlug}/`)) {
+      const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+      return `${this.baseUrl}/${cleanPath}`;
+    }
+
     // Remove leading slash if present
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
 
@@ -191,8 +197,23 @@ export class FizzyClient {
       await this.handleErrorResponse(response);
     }
 
-    // Parse JSON response
-    const data = await response.json() as T;
+    // Handle empty responses (201 Created, 204 No Content)
+    const contentLength = response.headers.get('Content-Length');
+    let data: T;
+
+    if (contentLength === '0' || response.status === 204) {
+      // For 201 with Location header, fetch the created resource
+      const location = response.headers.get('Location');
+      if (response.status === 201 && location) {
+        // Follow Location header to get created resource
+        const createdResponse = await this.get<T>(location);
+        data = createdResponse;
+      } else {
+        data = null as T;
+      }
+    } else {
+      data = await response.json() as T;
+    }
 
     // Store in cache if ETag is present
     const responseEtag = response.headers.get('ETag');

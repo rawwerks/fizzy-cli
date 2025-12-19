@@ -11,14 +11,14 @@ const ColumnArraySchema = z.array(ColumnSchema);
 const mockColumn = {
   id: 'column-123',
   name: 'To Do',
-  color: '#FF5733',
+  color: { name: 'red', value: 'var(--color-card-red)' },
   created_at: '2025-12-05T19:36:35.534Z',
 };
 
 const mockColumn2 = {
   id: 'column-456',
   name: 'In Progress',
-  color: '#33FF57',
+  color: { name: 'green', value: 'var(--color-card-green)' },
   created_at: '2025-12-05T19:36:35.534Z',
 };
 
