@@ -36,7 +36,8 @@ function createListCommand(): Command {
     .option('--account <slug>', 'Account slug to use')
     .option('--limit <number>', 'Maximum number of boards to return', (value) => parseInt(value, 10))
     .action(async (options) => {
-      const spinner = startSpinner('Fetching boards...');
+      const format = detectFormat(options);
+      const spinner = format === 'json' ? null : startSpinner('Fetching boards...');
 
       try {
         // Authenticate and get account info
@@ -64,10 +65,7 @@ function createListCommand(): Command {
           'boards list'
         );
 
-        spinner.succeed(`Found ${validatedBoards.length} board(s)`);
-
-        // Format output
-        const format = detectFormat(options);
+        if (spinner) spinner.succeed(`Found ${validatedBoards.length} board(s)`);
 
         if (format === 'json') {
           console.log(formatOutput(validatedBoards, format));
@@ -87,7 +85,7 @@ function createListCommand(): Command {
           }));
         }
       } catch (error) {
-        spinner.fail('Failed to fetch boards');
+        if (spinner) spinner.fail('Failed to fetch boards');
         printError(error instanceof Error ? error : new Error(String(error)));
         process.exit(1);
       }
@@ -106,7 +104,8 @@ function createGetCommand(): Command {
     .option('--json', 'Output in JSON format')
     .option('--account <slug>', 'Account slug to use')
     .action(async (id: string, options) => {
-      const spinner = startSpinner(`Fetching board ${id}...`);
+      const format = detectFormat(options);
+      const spinner = format === 'json' ? null : startSpinner(`Fetching board ${id}...`);
 
       try {
         // Authenticate and get account info
@@ -125,10 +124,7 @@ function createGetCommand(): Command {
         // Validate API response
         const board = parseApiResponse(BoardSchema, rawBoard, 'board details');
 
-        spinner.succeed(`Board: ${board.name}`);
-
-        // Format output
-        const format = detectFormat(options);
+        if (spinner) spinner.succeed(`Board: ${board.name}`);
 
         if (format === 'json') {
           console.log(formatOutput(board, format));
@@ -146,7 +142,7 @@ function createGetCommand(): Command {
           console.log('');
         }
       } catch (error) {
-        spinner.fail('Failed to fetch board');
+        if (spinner) spinner.fail('Failed to fetch board');
         printError(error instanceof Error ? error : new Error(String(error)));
         process.exit(1);
       }
@@ -168,7 +164,8 @@ function createCreateCommand(): Command {
     .option('--auto-postpone-period <days>', 'Number of days of inactivity before cards are automatically postponed', (value) => parseInt(value, 10))
     .option('--public-description <text>', 'Rich text description shown on the public board page')
     .action(async (name: string, options) => {
-      const spinner = startSpinner('Creating board...');
+      const format = detectFormat(options);
+      const spinner = format === 'json' ? null : startSpinner('Creating board...');
 
       try {
         // Authenticate and get account info
@@ -213,10 +210,7 @@ function createCreateCommand(): Command {
         // Validate API response
         const board = parseApiResponse(BoardSchema, rawBoard, 'board creation');
 
-        spinner.succeed(`Board created: ${board.name}`);
-
-        // Format output
-        const format = detectFormat(options);
+        if (spinner) spinner.succeed(`Board created: ${board.name}`);
 
         if (format === 'json') {
           console.log(formatOutput(board, format));
@@ -234,7 +228,7 @@ function createCreateCommand(): Command {
           console.log('');
         }
       } catch (error) {
-        spinner.fail('Failed to create board');
+        if (spinner) spinner.fail('Failed to create board');
         printError(error instanceof Error ? error : new Error(String(error)));
         process.exit(1);
       }
