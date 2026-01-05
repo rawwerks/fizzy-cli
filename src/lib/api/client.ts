@@ -51,6 +51,10 @@ export interface RequestOptions {
    * ETag value for conditional requests (If-None-Match)
    */
   etag?: string;
+  /**
+   * FormData for multipart/form-data requests
+   */
+  formData?: FormData;
 }
 
 export interface ApiResponse<T> {
@@ -142,7 +146,7 @@ export class FizzyClient {
    * Make an API request
    */
   async request<T>(path: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
-    const { method = 'GET', body, headers = {}, etag } = options;
+    const { method = 'GET', body, headers = {}, etag, formData } = options;
 
     const url = this.buildUrl(path);
 
@@ -165,8 +169,8 @@ export class FizzyClient {
       requestHeaders['Cookie'] = `session_token=${this.auth.token}`;
     }
 
-    // Add Content-Type for requests with body
-    if (body !== undefined) {
+    // Add Content-Type for requests with body (but not for FormData - fetch handles that automatically)
+    if (body !== undefined && !formData) {
       requestHeaders['Content-Type'] = 'application/json; charset=utf-8';
     }
 
@@ -179,7 +183,7 @@ export class FizzyClient {
     const response = await fetch(url, {
       method,
       headers: requestHeaders,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: formData ?? (body !== undefined ? JSON.stringify(body) : undefined),
     });
 
     // Handle 304 Not Modified - return cached data
@@ -393,6 +397,63 @@ export class FizzyClient {
       size: this.cache.size,
       entries: Array.from(this.cache.keys()),
     };
+  }
+
+  /**
+   * Upload a file with multipart/form-data
+   * @param path API path
+   * @param filePath Path to the file to upload
+   * @param fieldName Form field name (e.g., 'image', 'avatar')
+   * @param additionalFields Additional form fields to include
+   * @param method HTTP method (POST or PUT)
+   */
+  async uploadFile<T>(
+    path: string,
+    filePath: string,
+    fieldName: string,
+    additionalFields?: Record<string, unknown>,
+    method: 'POST' | 'PUT' = 'POST'
+  ): Promise<T> {
+    const fs = await import('fs/promises');
+
+    // Read the file
+    const fileBuffer = await fs.readFile(filePath);
+    const fileName = filePath.split('/').pop() || 'file';
+
+    // Determine MIME type from file extension
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      gif: 'image/gif',
+      webp: 'image/webp',
+    };
+    const contentType = mimeTypes[ext || ''] || 'application/octet-stream';
+
+    // Create FormData
+    const formData = new FormData();
+
+    // Add the file
+    const blob = new Blob([fileBuffer], { type: contentType });
+    formData.append(fieldName, blob, fileName);
+
+    // Add additional fields if provided
+    if (additionalFields) {
+      for (const [key, value] of Object.entries(additionalFields)) {
+        if (typeof value === 'object' && value !== null) {
+          // For nested objects, we need to flatten them with Rails parameter syntax
+          for (const [nestedKey, nestedValue] of Object.entries(value)) {
+            formData.append(`${key}[${nestedKey}]`, String(nestedValue));
+          }
+        } else {
+          formData.append(key, String(value));
+        }
+      }
+    }
+
+    const response = await this.request<T>(path, { method, formData });
+    return response.data;
   }
 }
 

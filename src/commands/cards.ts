@@ -33,6 +33,7 @@ interface CreateOptions extends BaseOptions {
   title: string;
   description?: string;
   status?: 'drafted' | 'published';
+  image?: string;
 }
 
 /**
@@ -42,6 +43,7 @@ interface UpdateOptions extends BaseOptions {
   title?: string;
   description?: string;
   status?: 'drafted' | 'published';
+  image?: string;
 }
 
 /**
@@ -49,6 +51,22 @@ interface UpdateOptions extends BaseOptions {
  */
 interface MoveOptions extends BaseOptions {
   column: string;
+}
+
+/**
+ * Options for cards tag command
+ */
+interface TagOptions extends BaseOptions {
+  add?: string[];
+  remove?: string[];
+}
+
+/**
+ * Options for cards assign command
+ */
+interface AssignOptions extends BaseOptions {
+  add?: string[];
+  remove?: string[];
 }
 
 /**
@@ -190,10 +208,40 @@ async function createCard(options: CreateOptions): Promise<void> {
       payload.status = options.status;
     }
 
-    const rawCard = await client.post<Card>(
-      `boards/${options.board}/cards`,
-      { card: payload }
-    );
+    let rawCard: Card;
+
+    // If image is provided, use multipart/form-data upload
+    if (options.image) {
+      // Validate file exists
+      const fs = await import('fs/promises');
+      try {
+        await fs.access(options.image);
+      } catch {
+        throw new Error(`Image file not found: ${options.image}`);
+      }
+
+      // Validate file extension
+      const ext = options.image.split('.').pop()?.toLowerCase();
+      const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+      if (!ext || !validExtensions.includes(ext)) {
+        throw new Error(`Invalid image format. Supported formats: ${validExtensions.join(', ')}`);
+      }
+
+      rawCard = await client.uploadFile<Card>(
+        `boards/${options.board}/cards`,
+        options.image,
+        'card[image]',
+        { card: payload },
+        'POST'
+      );
+    } else {
+      // Regular JSON request
+      rawCard = await client.post<Card>(
+        `boards/${options.board}/cards`,
+        { card: payload }
+      );
+    }
+
     const card = parseApiResponse(CardSchema, rawCard, 'card create');
     const format = detectFormat(options);
 
@@ -257,18 +305,48 @@ async function updateCard(cardIdentifier: string, options: UpdateOptions): Promi
       payload.status = options.status;
     }
 
-    if (Object.keys(payload).length === 0) {
-      printError(new Error('No update parameters provided. Use --title, --description, or --status'));
+    if (Object.keys(payload).length === 0 && !options.image) {
+      printError(new Error('No update parameters provided. Use --title, --description, --status, or --image'));
       process.exit(1);
     }
 
     // Resolve ID to number if needed (API uses card number for updates)
     const cardNumber = await resolveCardNumber(client, cardIdentifier);
 
-    const rawCard = await client.put<Card>(
-      `cards/${cardNumber}`,
-      { card: payload }
-    );
+    let rawCard: Card;
+
+    // If image is provided, use multipart/form-data upload
+    if (options.image) {
+      // Validate file exists
+      const fs = await import('fs/promises');
+      try {
+        await fs.access(options.image);
+      } catch {
+        throw new Error(`Image file not found: ${options.image}`);
+      }
+
+      // Validate file extension
+      const ext = options.image.split('.').pop()?.toLowerCase();
+      const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+      if (!ext || !validExtensions.includes(ext)) {
+        throw new Error(`Invalid image format. Supported formats: ${validExtensions.join(', ')}`);
+      }
+
+      rawCard = await client.uploadFile<Card>(
+        `cards/${cardNumber}`,
+        options.image,
+        'card[image]',
+        { card: payload },
+        'PUT'
+      );
+    } else {
+      // Regular JSON request
+      rawCard = await client.put<Card>(
+        `cards/${cardNumber}`,
+        { card: payload }
+      );
+    }
+
     const card = parseApiResponse(CardSchema, rawCard, 'card update');
     const format = detectFormat(options);
 
@@ -397,6 +475,204 @@ async function moveCard(cardIdentifier: string, options: MoveOptions): Promise<v
 }
 
 /**
+ * Postpone card command
+ */
+async function postponeCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
+  try {
+    const auth = await requireAuth({ accountSlug: options.account });
+    const client = createClient({
+      auth: { type: 'bearer', token: auth.account.access_token },
+      accountSlug: auth.account.account_slug,
+    });
+
+    const cardNumber = await resolveCardNumber(client, cardIdentifier);
+    await client.post(`cards/${cardNumber}/not_now`, {});
+    const format = detectFormat(options);
+
+    if (format === 'json') {
+      printOutput({ success: true, message: `Card #${cardNumber} postponed successfully` }, format);
+    } else {
+      printStatus(`Card #${cardNumber} postponed successfully`);
+    }
+  } catch (error) {
+    printError(error instanceof Error ? error : new Error('Failed to postpone card'));
+    process.exit(1);
+  }
+}
+
+/**
+ * Send card to triage command
+ */
+async function triageCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
+  try {
+    const auth = await requireAuth({ accountSlug: options.account });
+    const client = createClient({
+      auth: { type: 'bearer', token: auth.account.access_token },
+      accountSlug: auth.account.account_slug,
+    });
+
+    const cardNumber = await resolveCardNumber(client, cardIdentifier);
+    await client.delete(`cards/${cardNumber}/triage`);
+    const format = detectFormat(options);
+
+    if (format === 'json') {
+      printOutput({ success: true, message: `Card #${cardNumber} sent to triage successfully` }, format);
+    } else {
+      printStatus(`Card #${cardNumber} sent to triage successfully`);
+    }
+  } catch (error) {
+    printError(error instanceof Error ? error : new Error('Failed to send card to triage'));
+    process.exit(1);
+  }
+}
+
+/**
+ * Tag card command (add/remove tags)
+ */
+async function tagCard(cardIdentifier: string, options: TagOptions): Promise<void> {
+  try {
+    const auth = await requireAuth({ accountSlug: options.account });
+    const client = createClient({
+      auth: { type: 'bearer', token: auth.account.access_token },
+      accountSlug: auth.account.account_slug,
+    });
+
+    if (!options.add && !options.remove) {
+      printError(new Error('No tag operations specified. Use --add or --remove'));
+      process.exit(1);
+    }
+
+    const cardNumber = await resolveCardNumber(client, cardIdentifier);
+    const format = detectFormat(options);
+    const operations: string[] = [];
+
+    // Add tags
+    if (options.add && options.add.length > 0) {
+      for (const tag of options.add) {
+        await client.post(`cards/${cardNumber}/taggings`, { tag_title: tag });
+        operations.push(`added "${tag}"`);
+      }
+    }
+
+    // Remove tags (toggle to remove)
+    if (options.remove && options.remove.length > 0) {
+      for (const tag of options.remove) {
+        await client.post(`cards/${cardNumber}/taggings`, { tag_title: tag });
+        operations.push(`removed "${tag}"`);
+      }
+    }
+
+    if (format === 'json') {
+      printOutput({ success: true, message: `Card #${cardNumber} tags updated`, operations }, format);
+    } else {
+      printStatus(`Card #${cardNumber}: ${operations.join(', ')}`);
+    }
+  } catch (error) {
+    printError(error instanceof Error ? error : new Error('Failed to update card tags'));
+    process.exit(1);
+  }
+}
+
+/**
+ * Assign card command (assign/unassign users)
+ */
+async function assignCard(cardIdentifier: string, options: AssignOptions): Promise<void> {
+  try {
+    const auth = await requireAuth({ accountSlug: options.account });
+    const client = createClient({
+      auth: { type: 'bearer', token: auth.account.access_token },
+      accountSlug: auth.account.account_slug,
+    });
+
+    if (!options.add && !options.remove) {
+      printError(new Error('No assignment operations specified. Use --add or --remove'));
+      process.exit(1);
+    }
+
+    const cardNumber = await resolveCardNumber(client, cardIdentifier);
+    const format = detectFormat(options);
+    const operations: string[] = [];
+
+    // Assign users
+    if (options.add && options.add.length > 0) {
+      for (const userId of options.add) {
+        await client.post(`cards/${cardNumber}/assignments`, { assignee_id: userId });
+        operations.push(`assigned ${userId}`);
+      }
+    }
+
+    // Unassign users (toggle to unassign)
+    if (options.remove && options.remove.length > 0) {
+      for (const userId of options.remove) {
+        await client.post(`cards/${cardNumber}/assignments`, { assignee_id: userId });
+        operations.push(`unassigned ${userId}`);
+      }
+    }
+
+    if (format === 'json') {
+      printOutput({ success: true, message: `Card #${cardNumber} assignments updated`, operations }, format);
+    } else {
+      printStatus(`Card #${cardNumber}: ${operations.join(', ')}`);
+    }
+  } catch (error) {
+    printError(error instanceof Error ? error : new Error('Failed to update card assignments'));
+    process.exit(1);
+  }
+}
+
+/**
+ * Watch card command
+ */
+async function watchCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
+  try {
+    const auth = await requireAuth({ accountSlug: options.account });
+    const client = createClient({
+      auth: { type: 'bearer', token: auth.account.access_token },
+      accountSlug: auth.account.account_slug,
+    });
+
+    const cardNumber = await resolveCardNumber(client, cardIdentifier);
+    await client.post(`cards/${cardNumber}/watch`, {});
+    const format = detectFormat(options);
+
+    if (format === 'json') {
+      printOutput({ success: true, message: `Now watching card #${cardNumber}` }, format);
+    } else {
+      printStatus(`Now watching card #${cardNumber}`);
+    }
+  } catch (error) {
+    printError(error instanceof Error ? error : new Error('Failed to watch card'));
+    process.exit(1);
+  }
+}
+
+/**
+ * Unwatch card command
+ */
+async function unwatchCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
+  try {
+    const auth = await requireAuth({ accountSlug: options.account });
+    const client = createClient({
+      auth: { type: 'bearer', token: auth.account.access_token },
+      accountSlug: auth.account.account_slug,
+    });
+
+    const cardNumber = await resolveCardNumber(client, cardIdentifier);
+    await client.delete(`cards/${cardNumber}/watch`);
+    const format = detectFormat(options);
+
+    if (format === 'json') {
+      printOutput({ success: true, message: `Stopped watching card #${cardNumber}` }, format);
+    } else {
+      printStatus(`Stopped watching card #${cardNumber}`);
+    }
+  } catch (error) {
+    printError(error instanceof Error ? error : new Error('Failed to unwatch card'));
+    process.exit(1);
+  }
+}
+
+/**
  * Create the cards command group
  */
 export function createCardsCommand(): Command {
@@ -434,6 +710,7 @@ export function createCardsCommand(): Command {
     .requiredOption('--title <title>', 'Card title')
     .option('--description <text>', 'Card description')
     .option('--status <status>', 'Initial status (drafted or published)', 'published')
+    .option('--image <path>', 'Path to card header image (jpg, png, gif, webp)')
     .option('--json', 'Output in JSON format')
     .option('--account <slug>', 'Account slug to use')
     .action(async (options: CreateOptions) => {
@@ -447,6 +724,7 @@ export function createCardsCommand(): Command {
     .option('--title <title>', 'New title')
     .option('--description <text>', 'New description')
     .option('--status <status>', 'New status (drafted or published)')
+    .option('--image <path>', 'Path to card header image (jpg, png, gif, webp)')
     .option('--json', 'Output in JSON format')
     .option('--account <slug>', 'Account slug to use')
     .action(async (cardNumber: string, options: UpdateOptions) => {
@@ -492,6 +770,70 @@ export function createCardsCommand(): Command {
     .option('--account <slug>', 'Account slug to use')
     .action(async (cardNumber: string, options: MoveOptions) => {
       await moveCard(cardNumber, options);
+    });
+
+  // Postpone card
+  cards
+    .command('postpone <number>')
+    .description('Postpone a card (move to "Not Now")')
+    .option('--json', 'Output in JSON format')
+    .option('--account <slug>', 'Account slug to use')
+    .action(async (cardNumber: string, options: BaseOptions) => {
+      await postponeCard(cardNumber, options);
+    });
+
+  // Send card to triage
+  cards
+    .command('triage <number>')
+    .description('Send card to triage')
+    .option('--json', 'Output in JSON format')
+    .option('--account <slug>', 'Account slug to use')
+    .action(async (cardNumber: string, options: BaseOptions) => {
+      await triageCard(cardNumber, options);
+    });
+
+  // Tag card
+  cards
+    .command('tag <number>')
+    .description('Add or remove tags from a card')
+    .option('--add <tags...>', 'Tags to add')
+    .option('--remove <tags...>', 'Tags to remove')
+    .option('--json', 'Output in JSON format')
+    .option('--account <slug>', 'Account slug to use')
+    .action(async (cardNumber: string, options: TagOptions) => {
+      await tagCard(cardNumber, options);
+    });
+
+  // Assign card
+  cards
+    .command('assign <number>')
+    .description('Assign or unassign users to/from a card')
+    .option('--add <users...>', 'User IDs to assign')
+    .option('--remove <users...>', 'User IDs to unassign')
+    .option('--json', 'Output in JSON format')
+    .option('--account <slug>', 'Account slug to use')
+    .action(async (cardNumber: string, options: AssignOptions) => {
+      await assignCard(cardNumber, options);
+    });
+
+  // Watch card
+  cards
+    .command('watch <number>')
+    .description('Watch a card (receive notifications)')
+    .option('--json', 'Output in JSON format')
+    .option('--account <slug>', 'Account slug to use')
+    .action(async (cardNumber: string, options: BaseOptions) => {
+      await watchCard(cardNumber, options);
+    });
+
+  // Unwatch card
+  cards
+    .command('unwatch <number>')
+    .description('Unwatch a card (stop receiving notifications)')
+    .option('--json', 'Output in JSON format')
+    .option('--account <slug>', 'Account slug to use')
+    .action(async (cardNumber: string, options: BaseOptions) => {
+      await unwatchCard(cardNumber, options);
     });
 
   return cards;

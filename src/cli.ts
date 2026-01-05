@@ -14,6 +14,7 @@ import { createBoardsCommand } from './commands/boards.js';
 import { createCardsCommand } from './commands/cards.js';
 import { columnsCommand } from './commands/columns.js';
 import { commentsCommand } from './commands/comments.js';
+import { stepsCommand } from './commands/steps.js';
 import { createTagsCommand } from './commands/tags.js';
 import { createUsersCommand } from './commands/users.js';
 import { createNotificationsCommand } from './commands/notifications.js';
@@ -36,7 +37,7 @@ const packageJson = JSON.parse(
  * List of all available commands for "did you mean" suggestions
  */
 const COMMANDS = [
-  'auth', 'boards', 'cards', 'columns', 'comments', 'tags', 'users', 'notifications'
+  'auth', 'boards', 'cards', 'columns', 'comments', 'steps', 'tags', 'users', 'notifications'
 ];
 
 /**
@@ -135,6 +136,7 @@ export async function runCli(args?: string[]): Promise<void> {
   program.addCommand(cardsCommand);
   program.addCommand(columnsCommand);
   program.addCommand(commentsCommand);
+  program.addCommand(stepsCommand);
   program.addCommand(tagsCommand);
   program.addCommand(usersCommand);
   program.addCommand(notificationsCommand);

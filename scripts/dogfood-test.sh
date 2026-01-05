@@ -180,11 +180,11 @@ else
 fi
 
 # ============================================================================
-# CARDS (12 endpoints)
+# CARDS (18 endpoints)
 # ============================================================================
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Cards (12 endpoints)"
+echo "Cards (18/18 endpoints)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 test_cmd "List cards" cards list --json
 
@@ -196,12 +196,24 @@ if [ -n "$CARD_NUMBER" ]; then
     test_cmd "Update card" cards update "$CARD_NUMBER" --title "Dogfood Test Card" --json
 
     # Card operations
-    skip_test "Postpone card (POST /cards/:number/not_now)" # P0 - Not implemented
-    skip_test "Send card to triage (DELETE /cards/:number/triage)" # P0 - Not implemented
-    skip_test "Add tags to card (POST /cards/:number/taggings)" # P0 - Not implemented
-    skip_test "Assign users to card (POST /cards/:number/assignments)" # P0 - Not implemented
-    skip_test "Watch card (POST /cards/:number/watch)" # P0 - Not implemented
-    skip_test "Unwatch card (DELETE /cards/:number/watch)" # P0 - Not implemented
+    test_cmd "Postpone card" cards postpone "$CARD_NUMBER" --json
+    test_cmd "Send card to triage" cards triage "$CARD_NUMBER" --json
+    test_cmd "Watch card" cards watch "$CARD_NUMBER" --json
+    test_cmd "Unwatch card" cards unwatch "$CARD_NUMBER" --json
+
+    # Tag operations (need tags to exist first)
+    test_cmd "Add tag to card" cards tag "$CARD_NUMBER" --add "test-tag" --json
+    test_cmd "Remove tag from card" cards tag "$CARD_NUMBER" --remove "test-tag" --json
+
+    # Assignment operations (need user IDs)
+    USER_ID=$(eval "$CLI users list --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.id || \"\")'")
+    if [ -n "$USER_ID" ]; then
+        test_cmd "Assign user to card" cards assign "$CARD_NUMBER" --add "$USER_ID" --json
+        test_cmd "Unassign user from card" cards assign "$CARD_NUMBER" --remove "$USER_ID" --json
+    else
+        echo "  ⏭️  No users found for assignment tests"
+        ((SKIPPED+=2))
+    fi
 else
     echo "  ⚠️  No cards found, creating test card..."
     if [ -n "$BOARD_ID" ]; then
@@ -389,8 +401,42 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "File Uploads (multipart/form-data)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-skip_test "Upload card image (POST /boards/:id/cards with image)" # P0 - Not implemented
-skip_test "Upload user avatar (PUT /users/:id with avatar)" # P0 - Not implemented
+# Create a test image if it does not exist
+TEST_IMAGE="tests/fixtures/test-image.png"
+if [ ! -f "$TEST_IMAGE" ]; then
+    echo "  Creating test image..."
+    mkdir -p tests/fixtures
+    echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > "$TEST_IMAGE"
+fi
+
+if [ -n "$BOARD_ID" ]; then
+    echo "  Creating card with image..."
+    TEST_CARD_WITH_IMG=$(eval "$CLI cards create --board '$BOARD_ID' --title 'Card with Image (Dogfood)' --image '$TEST_IMAGE' --json 2>/dev/null | bun -e 'const data = await Bun.file("/dev/stdin").json(); console.log(data.number || "")'")
+
+    if [ -n "$TEST_CARD_WITH_IMG" ]; then
+        echo "  Upload card image (create)... ✅"
+        ((PASSED++))
+
+        # Test updating card image
+        test_cmd "Upload card image (update)" cards update "$TEST_CARD_WITH_IMG" --image "$TEST_IMAGE" --json
+
+        # Cleanup
+        eval "$CLI cards delete '$TEST_CARD_WITH_IMG' --json > /dev/null 2>&1" || true
+    else
+        echo "  Upload card image (create)... ❌"
+        ((FAILED++))
+        skip_test "Upload card image (update)" # Cannot test without create working
+    fi
+else
+    skip_test "Upload card image (POST /boards/:id/cards with image)" # No board available
+    skip_test "Upload card image (PUT /cards/:id with image)" # No board available
+fi
+
+if [ -n "$USER_ID" ]; then
+    test_cmd "Upload user avatar" users update "$USER_ID" --avatar "$TEST_IMAGE" --json
+else
+    skip_test "Upload user avatar (PUT /users/:id with avatar)" # No user available
+fi
 
 # ============================================================================
 # SUMMARY & REPORTING
@@ -407,7 +453,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # API Coverage Report
-TOTAL_ENDPOINTS=49
+TOTAL_ENDPOINTS=55
 IMPLEMENTED_ENDPOINTS=$((PASSED + FAILED))
 COVERAGE_PERCENT=$((IMPLEMENTED_ENDPOINTS * 100 / TOTAL_ENDPOINTS))
 
@@ -437,7 +483,7 @@ if [ $MISSING_FEATURES -gt 0 ] || [ $FAILED -gt 0 ]; then
 
 - **Implemented:** $IMPLEMENTED_ENDPOINTS / $TOTAL_ENDPOINTS endpoints
 - **Coverage:** $COVERAGE_PERCENT%
-- **Target:** 100% (49/49 endpoints)
+- **Target:** 100% (55/55 endpoints)
 
 EOF
 
@@ -471,11 +517,6 @@ EOF
 ## Priority Breakdown
 
 ### P0 Critical (Blocks Production)
-- Postpone card (POST /cards/:number/not_now)
-- Send card to triage (DELETE /cards/:number/triage)
-- Add tags to card (POST /cards/:number/taggings)
-- Assign users to card (POST /cards/:number/assignments)
-- Watch/unwatch card
 - File upload support (multipart/form-data)
 
 ### P1 High (Needed for v1.0)
@@ -523,7 +564,7 @@ if [ $FAILED -eq 0 ]; then
         echo "✅ All dogfooding tests passed!"
         echo ""
         echo "The CLI successfully communicated with the real Fizzy instance."
-        echo "API coverage: 100% (49/49 endpoints implemented)"
+        echo "API coverage: 100% (55/55 endpoints implemented)"
         exit 0
     fi
 else
