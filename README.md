@@ -9,15 +9,15 @@ Manage your Fizzy boards, cards, and workflows from the terminal or through AI a
 **No installation required** - use bunx or npx:
 
 ```bash
-# List your boards (with bunx - fastest!)
+# 1. Login first (interactive prompt for your token)
+bunx @raw-works/fizzy-cli auth login
+# or: npx @raw-works/fizzy-cli auth login
+
+# 2. List your boards
 bunx @raw-works/fizzy-cli boards list
 
-# Create a card (with npx)
-npx @raw-works/fizzy-cli cards create --board <board-id> --title "Ship it!"
-
-# Or install globally
-npm install -g @raw-works/fizzy-cli
-fizzy boards list
+# 3. Create a card
+bunx @raw-works/fizzy-cli cards create --board <board-id> --title "Ship it!"
 ```
 
 ## ⚡️ Installation
@@ -47,7 +47,10 @@ npx @raw-works/fizzy-cli boards list
 ### Option 3: Global Install
 
 ```bash
-# Install once, use everywhere:
+# With bun (fastest):
+bun add -g @raw-works/fizzy-cli
+
+# With npm:
 npm install -g @raw-works/fizzy-cli
 
 # Now just use 'fizzy':
@@ -58,12 +61,41 @@ fizzy cards create --board abc123 --title "New card"
 ### Option 4: Local Project
 
 ```bash
-# Add to your project:
+# With bun:
+bun add @raw-works/fizzy-cli
+
+# With npm:
 npm install @raw-works/fizzy-cli
 
-# Use via package.json scripts or npx:
+# Use via package.json scripts or npx/bunx:
+bunx fizzy boards list
 npx fizzy boards list
 ```
+
+## 🔐 Authentication
+
+Before using fizzy-cli, you need to authenticate. Two methods are available:
+
+### Method 1: Personal Access Token (Recommended)
+
+```bash
+fizzy auth login
+```
+
+This will guide you through:
+1. Visit https://app.fizzy.do/my/access_tokens
+2. Create a token with "Read + Write" permission
+3. Paste the token when prompted
+
+### Method 2: Magic Link
+
+```bash
+fizzy auth login --magic-link your@email.com
+```
+
+A login link will be sent to your email. Click it to authenticate.
+
+Your credentials are stored securely in `~/.fizzy-cli/tokens.json`.
 
 ## 💡 Why This CLI?
 
@@ -98,49 +130,6 @@ npx fizzy boards list
 - ⚠️  **Confirmations**: Prevent accidents with delete confirmations
 - 📄 **Pagination**: Handle large datasets efficiently
 - 🎨 **Beautiful Output**: Tables, colors, spinners
-
-## Quick Start
-
-### 1. Authentication
-
-The easiest way to authenticate is using a Personal Access Token (PAT):
-
-```bash
-fizzy auth login
-```
-
-This will guide you through:
-1. Visit https://app.fizzy.do/my/access_tokens
-2. Create a token with "Read + Write" permission
-3. Paste the token when prompted
-
-Your token is stored securely in `~/.fizzy-cli/tokens.json`.
-
-Alternatively, use magic link authentication:
-
-```bash
-fizzy auth login --magic-link your@email.com
-```
-
-### 2. List Your Boards
-
-```bash
-fizzy boards list
-```
-
-### 3. Create Your First Card
-
-```bash
-fizzy cards create --board <board-id> --title "My first CLI card" --description "Created from fizzy-cli!"
-```
-
-### 4. Explore Commands
-
-```bash
-fizzy --help
-fizzy boards --help
-fizzy cards --help
-```
 
 ## Configuration
 
