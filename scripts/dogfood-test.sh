@@ -24,8 +24,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # Check if required credentials are set
-if [ -z "$FIZZY_TOKEN" ]; then
-    echo "⏭️  Skipping dogfooding test: FIZZY_TOKEN not set"
+if [ -z "$FIZZY_TOKEN" ] || [ -z "$FIZZY_ACCOUNT_SLUG" ]; then
+    echo "⏭️  Skipping dogfooding test: Required environment variables not set"
     echo ""
     echo "To run dogfooding tests, set the following environment variables:"
     echo "  export FIZZY_BASE_URL=https://app.fizzy.do"
@@ -41,7 +41,7 @@ if [ -z "$FIZZY_TOKEN" ]; then
 fi
 
 FIZZY_BASE_URL=${FIZZY_BASE_URL:-"https://app.fizzy.do"}
-FIZZY_ACCOUNT_SLUG=${FIZZY_ACCOUNT_SLUG:-"/6125212"}
+FIZZY_ACCOUNT_SLUG=${FIZZY_ACCOUNT_SLUG}
 
 echo "📊 Configuration:"
 echo "  Base URL: $FIZZY_BASE_URL"

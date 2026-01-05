@@ -31,6 +31,10 @@ jobs:
 
       - name: Run dogfooding tests
         id: dogfood
+        # REQUIRED SECRETS:
+        # - FIZZY_TOKEN: Personal access token for Fizzy API
+        # - FIZZY_BASE_URL: Base URL for Fizzy instance (default: https://app.fizzy.do)
+        # - FIZZY_ACCOUNT_SLUG: Account slug (e.g., /6125212) - MUST be configured in GitHub Secrets
         env:
           FIZZY_TOKEN: ${{ secrets.FIZZY_TOKEN }}
           FIZZY_BASE_URL: ${{ secrets.FIZZY_BASE_URL }}
