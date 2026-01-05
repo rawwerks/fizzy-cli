@@ -29,43 +29,53 @@ jobs:
         id: request
         run: |
           echo "Requesting magic link..."
+
+          # Record timestamp before request
+          request_time=$(date -u +%Y-%m-%dT%H:%M:%S)
+          echo "request_time=$request_time" >> $GITHUB_OUTPUT
+
           bun run dist/index.js auth login --magic-link ${{ secrets.TEST_EMAIL }} --json > /tmp/auth-request.json || true
-          
+
           # The command will fail because we haven't entered a code yet, but it will have sent the email
-          echo "Magic link email sent"
+          echo "Magic link email sent at $request_time"
 
       - name: Wait for email and extract code
         id: get-code
         env:
           EMAIL_API_URL: ${{ secrets.EMAIL_API_URL }}
           TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
+          REQUEST_TIME: ${{ steps.request.outputs.request_time }}
         run: |
-          echo "Waiting for magic link email..."
-          
+          echo "Waiting for magic link email sent after $REQUEST_TIME..."
+
           # Poll for email with magic link code
           max_attempts=30
           attempt=0
           code=""
-          
+
           while [ $attempt -lt $max_attempts ] && [ -z "$code" ]; do
             sleep 2
             attempt=$((attempt + 1))
-            
+
             echo "Attempt $attempt/$max_attempts - Checking for emails..."
-            
+
             # Get recent emails
-            response=$(curl -s "${EMAIL_API_URL}?recipient=${TEST_EMAIL}&limit=5")
-            
-            # Extract the most recent email with magic link
-            code=$(echo "$response" | jq -r '.emails[0].textBody' | grep -oP '[A-Z0-9]{6}' | head -1 || echo "")
-            
+            response=$(curl -s "${EMAIL_API_URL}?recipient=${TEST_EMAIL}&limit=10")
+
+            # Find the most recent email received after request_time
+            code=$(echo "$response" | jq -r --arg req_time "$REQUEST_TIME" '
+              .emails[]
+              | select(.receivedAt > $req_time)
+              | .textBody
+            ' | grep -oP '[A-Z0-9]{6}' | head -1 || echo "")
+
             if [ -n "$code" ]; then
               echo "Found code: $code"
               echo "code=$code" >> $GITHUB_OUTPUT
               break
             fi
           done
-          
+
           if [ -z "$code" ]; then
             echo "Failed to receive magic link email after ${max_attempts} attempts"
             exit 1
