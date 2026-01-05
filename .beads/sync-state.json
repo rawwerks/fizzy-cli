@@ -1,7 +1,7 @@
 {
-  "last_failure": "2026-01-05T13:43:19.172580822-05:00",
+  "last_failure": "2026-01-05T14:11:49.078444641-05:00",
   "failure_count": 1,
-  "backoff_until": "2026-01-05T13:43:49.172581073-05:00",
+  "backoff_until": "2026-01-05T14:12:19.078444902-05:00",
   "needs_manual_sync": false,
   "failure_reason": "git pull failed in worktree: exit status 128\nerror: cannot pull with rebase: Your index contains uncommitted changes.\nerror: Please commit or stash them.\n"
 }
