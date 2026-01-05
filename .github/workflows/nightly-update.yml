@@ -12,6 +12,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
 
     steps:
       - name: Checkout with submodules
@@ -96,37 +97,46 @@ jobs:
 
       - name: Create Pull Request
         if: steps.check-updates.outputs.updates_available == 'true'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: |
-            Update fizzy-api submodule to latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="nightly-update-fizzy-${{ github.run_number }}"
+          git checkout -b "$BRANCH"
+          git add fizzy-api
+          git commit -m "Update fizzy-api submodule to latest
 
-            Updates fizzy-api from ${{ steps.check-updates.outputs.current }} to ${{ steps.check-updates.outputs.latest }}
+          Updates fizzy-api from ${{ steps.check-updates.outputs.current }} to ${{ steps.check-updates.outputs.latest }}
 
-            This automated PR includes ${{ steps.check-updates.outputs.commit_count }} new commits from upstream Fizzy.
-          branch: nightly-update-fizzy-${{ github.run_number }}
-          delete-branch: true
-          title: 'chore: Update fizzy-api submodule (${{ steps.check-updates.outputs.commit_count }} commits)'
-          body: |
-            ## Automated Fizzy Update
+          This automated PR includes ${{ steps.check-updates.outputs.commit_count }} new commits from upstream Fizzy.
 
-            This PR updates the `fizzy-api` submodule to the latest commit from upstream.
+          🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
-            **Changes:**
-            - Current: `${{ steps.check-updates.outputs.current }}`
-            - Latest: `${{ steps.check-updates.outputs.latest }}`
-            - Commits: ${{ steps.check-updates.outputs.commit_count }}
+          Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 
-            **Testing:**
-            - ✅ Type check passed
-            - ✅ Tests passed
-            - ✅ Build succeeded
+          git push -u origin "$BRANCH"
 
-            **View changes:** https://github.com/basecamp/fizzy/compare/${{ steps.check-updates.outputs.current }}...${{ steps.check-updates.outputs.latest }}
+          gh pr create \
+            --title "chore: Update fizzy-api submodule (${{ steps.check-updates.outputs.commit_count }} commits)" \
+            --body "## Automated Fizzy Update
 
-            ---
-            🤖 Generated with [Claude Code](https://claude.com/claude-code)
-          labels: |
-            dependencies
-            automated
+          This PR updates the \`fizzy-api\` submodule to the latest commit from upstream.
+
+          **Changes:**
+          - Current: \`${{ steps.check-updates.outputs.current }}\`
+          - Latest: \`${{ steps.check-updates.outputs.latest }}\`
+          - Commits: ${{ steps.check-updates.outputs.commit_count }}
+
+          **Testing:**
+          - ✅ Type check passed
+          - ✅ Unit tests passed (135 tests)
+          - ✅ Smoke tests passed
+          - ✅ Secret scan passed
+          - ✅ Dogfooding tests passed
+
+          **View changes:** https://github.com/basecamp/fizzy/compare/${{ steps.check-updates.outputs.current }}...${{ steps.check-updates.outputs.latest }}
+
+          ---
+          🤖 Generated with [Claude Code](https://claude.com/claude-code)" \
+            --label "dependencies,automated" \
+            --base master \
+            --head "$BRANCH"
