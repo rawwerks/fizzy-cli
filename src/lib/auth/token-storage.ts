@@ -71,10 +71,28 @@ export async function loadTokens(): Promise<TokensFile | null> {
 
   try {
     const data = await readFile(tokensPath, 'utf-8');
-    const parsed = JSON.parse(data);
-    return TokensFileSchema.parse(parsed);
+
+    // Parse JSON with better error handling
+    let parsed;
+    try {
+      parsed = JSON.parse(data);
+    } catch (jsonError) {
+      console.error(`Error: Your authentication file is corrupted (${tokensPath})`);
+      console.error('Please run "fizzy auth login" to authenticate again.');
+      return null;
+    }
+
+    // Validate schema
+    try {
+      return TokensFileSchema.parse(parsed);
+    } catch (schemaError) {
+      console.error(`Error: Your authentication file has an invalid format (${tokensPath})`);
+      console.error('Please run "fizzy auth login" to authenticate again.');
+      return null;
+    }
   } catch (error) {
-    console.error('Error loading tokens:', error);
+    // File read error (permissions, etc.)
+    console.error(`Error reading authentication file: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
 }
