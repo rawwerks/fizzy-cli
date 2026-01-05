@@ -1,8 +1,8 @@
 # @raw-works/fizzy-cli
 
-**The most comprehensive CLI for [Fizzy](https://fizzy.do) - 100% API coverage, battle-tested, production-ready.**
+**CLI for [Fizzy](https://fizzy.do) - designed for AI agents like Claude Code**
 
-Manage your Fizzy boards, cards, and workflows from the terminal. Automate everything. Ship faster.
+Manage your Fizzy boards, cards, and workflows from the terminal or through AI agents. Fully agent-friendly with non-interactive authentication, JSON output, and comprehensive API coverage.
 
 ## 🚀 Quick Start
 

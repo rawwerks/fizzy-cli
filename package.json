@@ -31,6 +31,9 @@
     "fizzy",
     "cli",
     "api",
+    "ai-agent",
+    "claude-code",
+    "automation",
     "basecamp",
     "37signals",
     "project-management",
@@ -39,7 +42,7 @@
   ],
   "author": "Raymond Weitekamp",
   "license": "SEE LICENSE IN LICENSE.md",
-  "description": "CLI for Fizzy (https://fizzy.do)",
+  "description": "CLI for Fizzy (https://fizzy.do) - designed for AI agents like Claude Code",
   "repository": {
     "type": "git",
     "url": "https://github.com/rawwerks/fizzy-cli.git"
