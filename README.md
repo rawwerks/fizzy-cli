@@ -2,27 +2,34 @@
 
 **CLI for [Fizzy](https://fizzy.do) - designed for AI agents like Claude Code**
 
-Manage your Fizzy boards, cards, and workflows from the terminal or through AI agents. Fully agent-friendly with non-interactive authentication, JSON output, and comprehensive API coverage.
+[Fizzy](https://fizzy.do) is a lightweight project management tool with boards, cards, and columns (similar to Trello). This CLI lets you manage Fizzy from the terminal or through AI agents.
 
 ## 🚀 Quick Start
 
-**No installation required** - use bunx or npx:
+**No installation required** - run directly with bunx or npx:
 
 ```bash
-# 1. Login first (interactive prompt for your token)
-bunx @raw-works/fizzy-cli auth login
-# or: npx @raw-works/fizzy-cli auth login
+# 1. Login with your Personal Access Token
+#    Get one at: https://app.fizzy.do/my/access_tokens
+bunx @raw-works/fizzy-cli auth login --token YOUR_TOKEN
 
-# 2. List your boards
+# 2. List your boards (note the board IDs in the output)
 bunx @raw-works/fizzy-cli boards list
 
-# 3. Create a card
-bunx @raw-works/fizzy-cli cards create --board <board-id> --title "Ship it!"
+# 3. List cards on a board
+bunx @raw-works/fizzy-cli cards list --board BOARD_ID
+
+# 4. Create a card
+bunx @raw-works/fizzy-cli cards create --board BOARD_ID --title "Ship it!"
 ```
 
-## ⚡️ Installation
+> **Tip:** Replace `bunx` with `npx` if you prefer npm. After global install, use just `fizzy` instead.
+>
+> **Discover commands:** Run `bunx @raw-works/fizzy-cli --help` to see all available commands.
 
-Choose your preferred method:
+## ⚡️ Installation (Optional)
+
+The Quick Start above works without installation. For convenience, you can install globally:
 
 ### Option 1: bunx (Fastest)
 
@@ -74,28 +81,60 @@ npx fizzy boards list
 
 ## 🔐 Authentication
 
-Before using fizzy-cli, you need to authenticate. Two methods are available:
+### Step 1: Get a Personal Access Token
 
-### Method 1: Personal Access Token (Recommended)
+1. Log in to [Fizzy](https://app.fizzy.do) and go to your **Profile**
+2. Scroll to the **API** section and click **"Personal access tokens"**
+3. Click **"Generate a new access token"**
+4. Enter a description (e.g., "fizzy-cli") and select **"Read + Write"** permission
+5. Click **"Generate access token"** and copy the token
+
+> **Keep your token secret!** Anyone with your token can access your Fizzy account.
+
+### Step 2: Log In
+
+**For AI Agents / Scripts (Non-Interactive):**
 
 ```bash
-fizzy auth login
+# Pass token directly - no prompts
+fizzy auth login --token YOUR_PAT_TOKEN
 ```
 
-This will guide you through:
-1. Visit https://app.fizzy.do/my/access_tokens
-2. Create a token with "Read + Write" permission
-3. Paste the token when prompted
-
-### Method 2: Magic Link
+**For Humans (Interactive):**
 
 ```bash
+# Interactive prompt will ask for your token
+fizzy auth login
+
+# Or use magic link (sends login email)
 fizzy auth login --magic-link your@email.com
 ```
 
-A login link will be sent to your email. Click it to authenticate.
+### Auth Management
 
-Your credentials are stored securely in `~/.fizzy-cli/tokens.json`.
+```bash
+fizzy auth status      # Check if logged in
+fizzy auth accounts    # List all accounts
+fizzy auth switch foo  # Switch default account
+fizzy auth logout      # Remove credentials
+```
+
+Your credentials are stored in `~/.fizzy-cli/tokens.json`.
+
+## 📤 JSON Output
+
+All commands support `--json` for machine-readable output:
+
+```bash
+# Get boards as JSON (for scripting/AI agents)
+fizzy boards list --json
+
+# Pipe to jq for processing
+fizzy boards list --json | jq '.[0].id'
+
+# Get a specific card as JSON
+fizzy cards get 42 --board BOARD_ID --json
+```
 
 ## 💡 Why This CLI?
 
