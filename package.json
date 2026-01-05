@@ -1,6 +1,6 @@
 {
   "name": "@raw-works/fizzy-cli",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "main": "dist/index.js",
   "bin": {
     "fizzy": "./dist/index.js"
