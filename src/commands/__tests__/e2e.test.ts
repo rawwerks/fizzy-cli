@@ -66,6 +66,7 @@ describe("E2E: CLI Workflows", () => {
       "cards",
       "users",
       "comments",
+      "reactions",
       "tags",
       "columns",
       "steps",
@@ -76,6 +77,17 @@ describe("E2E: CLI Workflows", () => {
       it(`${command} command shows help`, () => {
         const output = runCLI(`${command} --help`);
         expect(output).toContain(command);
+      });
+    });
+  });
+
+  describe("Users Commands", () => {
+    const userCommands = ["list", "get", "me", "update", "deactivate"];
+
+    userCommands.forEach((subcommand) => {
+      it(`users ${subcommand} command exists`, () => {
+        const output = runCLI(`users ${subcommand} --help`);
+        expect(output).toContain(subcommand);
       });
     });
   });
@@ -139,6 +151,43 @@ describe("E2E: CLI Workflows", () => {
       const output = runCLI("cards unwatch --help");
       expect(output).toContain("unwatch");
       expect(output).toContain("number");
+    });
+  });
+
+  describe("Notifications Commands", () => {
+    const notificationCommands = [
+      "list",
+      "read",
+      "unread",
+      "mark-all-read",
+    ];
+
+    notificationCommands.forEach((subcommand) => {
+      it(`notifications ${subcommand} command exists`, () => {
+        const output = runCLI(`notifications ${subcommand} --help`);
+        expect(output).toContain(subcommand);
+      });
+    });
+  });
+
+  describe("Reactions Commands", () => {
+    const reactionCommands = [
+      "list",
+      "create",
+      "delete",
+    ];
+
+    reactionCommands.forEach((subcommand) => {
+      it(`reactions ${subcommand} command exists`, () => {
+        const output = runCLI(`reactions ${subcommand} --help`);
+        expect(output).toContain(subcommand);
+      });
+    });
+
+    it("reactions list requires comment and card options", () => {
+      const output = runCLI("reactions list --help");
+      expect(output).toContain("--comment");
+      expect(output).toContain("--card");
     });
   });
 

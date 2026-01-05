@@ -153,6 +153,47 @@ function createUnreadCommand(): Command {
 }
 
 /**
+ * Notifications mark-all-read command - mark all notifications as read
+ */
+function createMarkAllReadCommand(): Command {
+  const command = new Command('mark-all-read');
+
+  command
+    .description('Mark all notifications as read')
+    .option('--json', 'Output in JSON format')
+    .option('--account <slug>', 'Account slug (optional, uses default if not provided)')
+    .action(async (options) => {
+      try {
+        // Get authentication
+        const auth = await requireAuth({ accountSlug: options.account });
+
+        // Create API client
+        const client = createClient({
+          auth: { type: 'bearer', token: auth.account.access_token },
+          accountSlug: auth.account.account_slug,
+        });
+
+        // Mark all notifications as read
+        await client.post('/notifications/bulk_reading', {});
+
+        // Determine output format
+        const format = detectFormat(options);
+
+        if (format === 'json') {
+          console.log(formatOutput({ success: true }, format));
+        } else {
+          printStatus('Marked all notifications as read');
+        }
+      } catch (error) {
+        printError(error instanceof Error ? error : new Error('Failed to mark all notifications as read'));
+        process.exit(1);
+      }
+    });
+
+  return command;
+}
+
+/**
  * Notifications command group
  */
 export function createNotificationsCommand(): Command {
@@ -162,7 +203,8 @@ export function createNotificationsCommand(): Command {
     .description('Manage notifications')
     .addCommand(createListCommand())
     .addCommand(createReadCommand())
-    .addCommand(createUnreadCommand());
+    .addCommand(createUnreadCommand())
+    .addCommand(createMarkAllReadCommand());
 
   return command;
 }

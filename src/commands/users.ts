@@ -264,6 +264,63 @@ function createUpdateCommand(): Command {
 }
 
 /**
+ * Users deactivate command - deactivate a user
+ */
+function createDeactivateCommand(): Command {
+  const command = new Command('deactivate');
+
+  command
+    .description('Deactivate a user')
+    .argument('<id>', 'User ID')
+    .option('--json', 'Output in JSON format')
+    .option('--force', 'Skip confirmation prompt')
+    .option('--account <slug>', 'Account slug (optional, uses default if not provided)')
+    .action(async (id, options) => {
+      try {
+        // Get authentication
+        const auth = await requireAuth({ accountSlug: options.account });
+
+        // Create API client
+        const client = createClient({
+          auth: { type: 'bearer', token: auth.account.access_token },
+          accountSlug: auth.account.account_slug,
+        });
+
+        // Prompt for confirmation unless --force is used
+        if (!options.force) {
+          const { confirm } = await import('@inquirer/prompts');
+          const shouldContinue = await confirm({
+            message: `Are you sure you want to deactivate user ${id}?`,
+            default: false,
+          });
+
+          if (!shouldContinue) {
+            console.log('Deactivation cancelled');
+            process.exit(0);
+          }
+        }
+
+        // Deactivate user
+        await client.delete(`/users/${id}`);
+
+        // Determine output format
+        const format = detectFormat(options);
+
+        if (format === 'json') {
+          console.log(formatOutput({ success: true, message: 'User deactivated successfully' }, format));
+        } else {
+          console.log('User deactivated successfully');
+        }
+      } catch (error) {
+        printError(error instanceof Error ? error : new Error('Failed to deactivate user'));
+        process.exit(1);
+      }
+    });
+
+  return command;
+}
+
+/**
  * Users command group
  */
 export function createUsersCommand(): Command {
@@ -274,7 +331,8 @@ export function createUsersCommand(): Command {
     .addCommand(createListCommand())
     .addCommand(createGetCommand())
     .addCommand(createMeCommand())
-    .addCommand(createUpdateCommand());
+    .addCommand(createUpdateCommand())
+    .addCommand(createDeactivateCommand());
 
   return command;
 }
