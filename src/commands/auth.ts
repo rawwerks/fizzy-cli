@@ -5,7 +5,13 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { authenticateWithMagicLink, getIdentity } from '../lib/auth/magic-link.js';
+import {
+  authenticateWithMagicLink,
+  getIdentity,
+  requestMagicLink,
+  pollForAuth,
+  saveAccountsFromIdentity,
+} from '../lib/auth/magic-link.js';
 import { getBaseUrl } from '../lib/auth/config.js';
 import {
   loadTokens,
@@ -18,6 +24,7 @@ import {
   saveAccount,
   type StoredAccount,
 } from '../lib/auth/token-storage.js';
+import { openBrowser } from '../lib/utils/browser.js';
 
 /**
  * Authenticate with a Personal Access Token
@@ -78,8 +85,18 @@ const loginCommand = new Command('login')
   .option('--json', 'Output in JSON format')
   .option('--token <token>', 'Personal Access Token (from https://app.fizzy.do/my/access_tokens)')
   .option('--magic-link', 'Use magic link authentication instead of PAT')
+  .option('--no-browser', 'Do not automatically open browser for authentication')
+  .option('--wait', 'Wait for authentication to complete (polls for completion)')
+  .option('--timeout <seconds>', 'Timeout in seconds when using --wait (default: 300)', '300')
   .argument('[email]', 'Email address (only for magic link auth)')
-  .action(async (email: string | undefined, options: { json?: boolean; token?: string; magicLink?: boolean }) => {
+  .action(async (email: string | undefined, options: {
+    json?: boolean;
+    token?: string;
+    magicLink?: boolean;
+    browser?: boolean;
+    wait?: boolean;
+    timeout?: string;
+  }) => {
     const spinner = options.json ? null : ora('Starting authentication...').start();
 
     try {
@@ -145,22 +162,82 @@ const loginCommand = new Command('login')
 
         if (spinner) spinner.text = 'Sending magic link email...';
 
-        accounts = await authenticateWithMagicLink(
-          userEmail,
-          async () => {
-            if (spinner) spinner.stop();
-            console.log(chalk.green('\nMagic link email sent!'));
-            console.log(chalk.gray('Check your inbox for a 6-character code.'));
+        // Check if we should use the wait flow (polling) or the code flow (manual)
+        if (options.wait) {
+          // Wait/polling flow
+          const magicLinkResponse = await requestMagicLink(userEmail);
 
-            const code = await promptForCode();
+          if (spinner) spinner.succeed('Magic link sent!');
 
-            if (spinner) {
-              spinner.start('Verifying code...');
-            }
-
-            return code;
+          if (!options.json) {
+            console.log('');
+            console.log(chalk.green('Magic link sent to:'), chalk.bold(userEmail));
+            console.log('');
+            console.log(chalk.gray('Next steps:'));
+            console.log(chalk.gray('  1. Check your email inbox'));
+            console.log(chalk.gray('  2. Click the magic link in the email'));
+            console.log(chalk.gray('  3. Complete authentication in your browser'));
+            console.log('');
           }
-        );
+
+          // Try to open browser if auth_url is provided and browser opening is not disabled
+          if (options.browser !== false && magicLinkResponse.auth_url) {
+            try {
+              if (!options.json) {
+                console.log(chalk.cyan('Opening browser...'));
+              }
+              await openBrowser(magicLinkResponse.auth_url);
+            } catch (error) {
+              if (!options.json) {
+                console.log(chalk.yellow('Could not open browser automatically.'));
+                console.log(chalk.gray(`Please visit: ${magicLinkResponse.auth_url}`));
+              }
+            }
+          }
+
+          // Poll for authentication
+          const timeoutMs = parseInt(options.timeout || '300') * 1000;
+
+          if (spinner) {
+            spinner.start('Waiting for authentication...');
+          } else if (!options.json) {
+            console.log('Waiting for authentication...');
+          }
+
+          const sessionToken = await pollForAuth(magicLinkResponse.pending_authentication_token, timeoutMs);
+
+          if (spinner) spinner.text = 'Fetching account information...';
+
+          // Get identity and save accounts
+          const identity = await getIdentity(sessionToken);
+          accounts = await saveAccountsFromIdentity(sessionToken, identity);
+        } else {
+          // Code flow (original behavior)
+          const result = await authenticateWithMagicLink(
+            userEmail,
+            async () => {
+              if (spinner) spinner.stop();
+              console.log('');
+              console.log(chalk.green('Magic link sent to:'), chalk.bold(userEmail));
+              console.log('');
+              console.log(chalk.gray('Next steps:'));
+              console.log(chalk.gray('  1. Check your email inbox (and spam folder)'));
+              console.log(chalk.gray('  2. Find the 6-character code in the email'));
+              console.log(chalk.gray('  3. Enter the code below'));
+              console.log('');
+
+              const code = await promptForCode();
+
+              if (spinner) {
+                spinner.start('Verifying code...');
+              }
+
+              return code;
+            }
+          );
+
+          accounts = result.accounts;
+        }
       }
 
       if (spinner) spinner.succeed('Authentication successful!');
@@ -266,7 +343,15 @@ const statusCommand = new Command('status')
         if (options.json) {
           console.log(JSON.stringify({ authenticated: false }));
         } else {
-          console.log(chalk.yellow('Not authenticated. Run `fizzy auth login` to authenticate.'));
+          console.log(chalk.yellow('Not authenticated'));
+          console.log('');
+          console.log(chalk.gray('To authenticate, run:'));
+          console.log(chalk.cyan('  fizzy auth login --token <your-token>'));
+          console.log(chalk.gray('or'));
+          console.log(chalk.cyan('  fizzy auth login --magic-link --wait'));
+          console.log('');
+          console.log(chalk.gray('Get your Personal Access Token at:'));
+          console.log(chalk.gray('  https://app.fizzy.do/my/access_tokens'));
         }
         return;
       }
@@ -285,24 +370,47 @@ const statusCommand = new Command('status')
               email: acc.user.email_address,
               role: acc.user.role,
             },
+            createdAt: acc.created_at,
             isDefault: acc.account_slug === defaultAccount?.account_slug,
           })),
           defaultAccount: defaultAccount?.account_slug || null,
         }, null, 2));
       } else {
-        console.log(chalk.green('Authenticated'));
+        console.log(chalk.green.bold('Authenticated'));
+        console.log('');
 
         if (defaultAccount) {
-          console.log(chalk.gray(`\nUser: ${defaultAccount.user.name} (${defaultAccount.user.email_address})`));
-          console.log(chalk.gray(`Default account: ${defaultAccount.account_name} (${defaultAccount.account_slug})`));
+          console.log(chalk.bold('Current User:'));
+          console.log(chalk.gray(`  Name:  ${defaultAccount.user.name}`));
+          console.log(chalk.gray(`  Email: ${defaultAccount.user.email_address}`));
+          console.log(chalk.gray(`  Role:  ${defaultAccount.user.role}`));
+          console.log('');
+
+          console.log(chalk.bold('Default Account:'));
+          console.log(chalk.gray(`  Name: ${defaultAccount.account_name}`));
+          console.log(chalk.gray(`  Slug: ${defaultAccount.account_slug}`));
+
+          // Show when token was created
+          const createdDate = new Date(defaultAccount.created_at);
+          const now = new Date();
+          const daysSince = Math.floor((now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+          const timeAgo = daysSince === 0 ? 'today' :
+                         daysSince === 1 ? 'yesterday' :
+                         `${daysSince} days ago`;
+          console.log(chalk.gray(`  Authenticated: ${timeAgo}`));
         }
 
-        console.log(chalk.gray(`\nAccounts (${accounts.length}):`));
-        for (const account of accounts) {
-          const isDefault = account.account_slug === defaultAccount?.account_slug;
-          const marker = isDefault ? chalk.green('* ') : '  ';
-          console.log(`${marker}${account.account_name} (${account.account_slug})`);
-          console.log(chalk.gray(`    User: ${account.user.name} (${account.user.role})`));
+        if (accounts.length > 1) {
+          console.log('');
+          console.log(chalk.bold(`All Accounts (${accounts.length}):`));
+          for (const account of accounts) {
+            const isDefault = account.account_slug === defaultAccount?.account_slug;
+            const marker = isDefault ? chalk.green('* ') : '  ';
+            console.log(`${marker}${chalk.bold(account.account_name)} (${account.account_slug})`);
+            console.log(chalk.gray(`    User: ${account.user.name} (${account.user.role})`));
+          }
+          console.log('');
+          console.log(chalk.gray('* = default account'));
         }
       }
     } catch (error) {
@@ -434,4 +542,32 @@ export const authCommand = new Command('auth')
   .addCommand(logoutCommand)
   .addCommand(statusCommand)
   .addCommand(accountsCommand)
-  .addCommand(switchCommand);
+  .addCommand(switchCommand)
+  .addHelpText('after', `
+Examples:
+  # Login with Personal Access Token (recommended)
+  $ fizzy auth login
+  $ fizzy auth login --token your-pat-token
+
+  # Login with magic link (polls for completion)
+  $ fizzy auth login --magic-link --wait
+  $ fizzy auth login --magic-link --wait your@email.com
+
+  # Login with magic link (manual code entry)
+  $ fizzy auth login --magic-link your@email.com
+
+  # Check authentication status
+  $ fizzy auth status
+
+  # List all authenticated accounts
+  $ fizzy auth accounts
+
+  # Switch default account
+  $ fizzy auth switch another-account-slug
+
+  # Logout from specific account
+  $ fizzy auth logout --account account-slug
+
+  # Logout from all accounts
+  $ fizzy auth logout
+`);

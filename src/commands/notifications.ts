@@ -12,6 +12,8 @@ import { createClient } from '../lib/api/client.js';
 import { NotificationSchema, parseApiResponse } from '../schemas/api.js';
 import { formatOutput, detectFormat, printError, printStatus } from '../lib/output/formatter.js';
 import { z } from 'zod';
+import { filterNotifications, type NotificationFilters } from '../lib/filters.js';
+import chalk from 'chalk';
 
 /**
  * Notifications list command - list notifications for the current user
@@ -21,8 +23,13 @@ function createListCommand(): Command {
 
   command
     .description('List notifications for the current user')
+    .option('--read', 'Show only read notifications')
+    .option('--unread', 'Show only unread notifications')
+    .option('--search <query>', 'Search notification title and body')
+    .option('--sort <field>', 'Sort by: created_at (default: created_at)')
+    .option('--order <order>', 'Sort order: asc, desc (default: desc)')
     .option('--json', 'Output in JSON format')
-    .option('--unread-only', 'Show only unread notifications')
+    .option('--unread-only', 'Show only unread notifications (deprecated, use --unread)')
     .option('--account <slug>', 'Account slug (optional, uses default if not provided)')
     .action(async (options) => {
       try {
@@ -39,16 +46,24 @@ function createListCommand(): Command {
         const rawNotifications = await client.getAll('/notifications');
 
         // Validate API response
-        let notifications = parseApiResponse(
+        const allNotifications = parseApiResponse(
           z.array(NotificationSchema),
           rawNotifications,
           'notifications list'
         );
 
-        // Filter to unread only if requested
-        if (options.unreadOnly) {
-          notifications = notifications.filter((n) => !n.read);
-        }
+        // Apply client-side filters
+        const filters: NotificationFilters = {};
+        // Support both --unread and --unread-only (deprecated) flags
+        if (options.unread || options.unreadOnly) filters.unread = true;
+        if (options.read) filters.read = true;
+        if (options.search) filters.search = options.search;
+        if (options.sort) filters.sort = options.sort;
+        if (options.order) filters.order = options.order;
+
+        const notifications = Object.keys(filters).length > 0 ? filterNotifications(allNotifications, filters) : allNotifications;
+        const totalNotifications = allNotifications.length;
+        const filteredCount = notifications.length;
 
         // Determine output format
         const format = detectFormat(options);
@@ -56,6 +71,11 @@ function createListCommand(): Command {
         if (format === 'json') {
           console.log(formatOutput(notifications, format));
         } else {
+          // Show filter summary if filtering was applied
+          if (filteredCount < totalNotifications) {
+            console.log(chalk.gray(`Showing ${filteredCount} of ${totalNotifications} notifications (filtered)\n`));
+          }
+
           // Transform data for table display
           const tableData = notifications.map((notification) => ({
             ID: notification.id,
@@ -204,7 +224,24 @@ export function createNotificationsCommand(): Command {
     .addCommand(createListCommand())
     .addCommand(createReadCommand())
     .addCommand(createUnreadCommand())
-    .addCommand(createMarkAllReadCommand());
+    .addCommand(createMarkAllReadCommand())
+    .addHelpText('after', `
+Examples:
+  # List all notifications
+  $ fizzy notifications list
+
+  # List only unread notifications
+  $ fizzy notifications list --unread
+
+  # Mark notification as read
+  $ fizzy notifications read notification-id
+
+  # Mark notification as unread
+  $ fizzy notifications unread notification-id
+
+  # Mark all notifications as read
+  $ fizzy notifications mark-all-read
+`);
 
   return command;
 }
