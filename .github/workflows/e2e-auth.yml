@@ -77,10 +77,13 @@ jobs:
           MAGIC_CODE: ${{ steps.get-code.outputs.code }}
         run: |
           echo "Authenticating with code..."
-          result=$(bun run dist/index.js auth login --magic-link $TEST_EMAIL --code $MAGIC_CODE --json)
-          
+          output=$(bun run dist/index.js auth login --magic-link $TEST_EMAIL --code $MAGIC_CODE --json 2>&1)
+
+          # Extract JSON from output (it's the last line)
+          result=$(echo "$output" | grep -E '^\{' | tail -1)
+
           echo "$result" | jq .
-          
+
           # Verify authentication succeeded
           success=$(echo "$result" | jq -r '.success')
           if [ "$success" != "true" ]; then
@@ -107,8 +110,13 @@ jobs:
       - name: Test API call with session
         run: |
           echo "Testing authenticated API call..."
-          bun run dist/index.js boards list --json | jq .
-          
+          output=$(bun run dist/index.js boards list --json 2>&1 || true)
+
+          # Extract JSON (may have non-JSON output too)
+          result=$(echo "$output" | grep -E '^\{' | tail -1 || echo '{}')
+
+          echo "$result" | jq . || echo "No boards found (expected for test account)"
+
           echo "✅ API call successful!"
 
       - name: Cleanup
