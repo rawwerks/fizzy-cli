@@ -62,24 +62,99 @@ jobs:
           # Check if there's an existing open dogfooding issue
           EXISTING_ISSUE=$(gh issue list --label "dogfooding,automated" --state open --json number --jq '.[0].number')
 
-          ISSUE_BODY="## Dogfooding Test Failure
+          ISSUE_BODY="## 🍕 Dogfooding Test Failure - Action Required
 
-          The nightly dogfooding tests failed on $(date -u '+%Y-%m-%d at %H:%M UTC').
-
+          **Date:** $(date -u '+%Y-%m-%d at %H:%M UTC')
           **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-          ### Test Output
-          \`\`\`
-          $(cat dogfood-output.txt | tail -50)
-          \`\`\`
-
-          ### Next Steps
-          1. Review the test failures above
-          2. Fix the CLI or test script as needed
-          3. Run \`./scripts/dogfood-test.sh\` locally to verify
-          4. Commit the fix and the workflow will re-test automatically
+          The nightly end-to-end dogfooding tests failed. These tests verify the CLI works correctly against a **real Fizzy instance** with actual API calls.
 
           ---
+
+          ## Test Output
+
+          \`\`\`
+          $(cat dogfood-output.txt)
+          \`\`\`
+
+          ---
+
+          ## Your Task (Claude Agent Instructions)
+
+          You are a debugging agent tasked with fixing this dogfooding test failure. Follow these steps systematically:
+
+          ### 1. Analyze the Failure
+
+          - Read the test output above carefully
+          - Identify which specific test(s) failed
+          - Look for error messages, status codes, or authentication issues
+
+          ### 2. Understand the Test
+
+          The dogfood test (\`scripts/dogfood-test.sh\`) does the following:
+          - Creates a temporary config directory with tokens.json
+          - Runs these API operations against the real Fizzy instance:
+            1. List boards
+            2. List users
+            3. List notifications
+            4. Get current user info
+            5. Check auth status
+
+          ### 3. Debug Locally
+
+          Run the test locally first:
+          \`\`\`bash
+          export FIZZY_TOKEN=\"<token_from_secrets>\"
+          export FIZZY_BASE_URL=\"https://app.fizzy.do\"
+          export FIZZY_ACCOUNT_SLUG=\"/6125212\"
+          ./scripts/dogfood-test.sh
+          \`\`\`
+
+          ### 4. Common Failure Scenarios
+
+          **Authentication Issues:**
+          - Check if token format changed in tokens.json
+          - Verify auth middleware is correctly reading HOME env var
+          - Check if API authentication headers are correct
+
+          **API Changes:**
+          - Fizzy API endpoints may have changed
+          - Check \`fizzy-api\` submodule for API changes
+          - Update CLI code to match new API spec
+
+          **Test Script Issues:**
+          - Verify tokens.json format matches what CLI expects
+          - Check if HOME directory override is working
+          - Ensure FIZZY_BASE_URL env var is properly used
+
+          ### 5. Fix the Issue
+
+          - Make necessary changes to CLI code or test script
+          - Run \`bun test\` to ensure unit tests still pass
+          - Run \`./scripts/dogfood-test.sh\` locally to verify fix
+          - Run \`./scripts/smoke-test.sh\` to ensure nothing broke
+
+          ### 6. Commit and Verify
+
+          \`\`\`bash
+          git add <files>
+          git commit -m \"Fix dogfooding test: <description>\"
+          git push
+          \`\`\`
+
+          The workflow will run again on push and auto-close this issue if tests pass.
+
+          ---
+
+          ## Important Notes
+
+          - **Do not skip steps** - systematic debugging is critical
+          - **Test locally first** - don't rely solely on CI
+          - **Check recent changes** - review recent commits to fizzy-api submodule
+          - **Verify secrets** - ensure GitHub secrets are still valid
+
+          ---
+
           🤖 This issue was automatically created by the dogfooding workflow.
           It will auto-close when tests pass."
 
