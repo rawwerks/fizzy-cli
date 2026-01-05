@@ -34,6 +34,77 @@ jobs:
       - name: Run smoke tests
         run: ./scripts/smoke-test.sh
 
+      - name: Validate .gitignore patterns
+        run: |
+          echo "Validating .gitignore contains required security patterns..."
+          MISSING_PATTERNS=""
+
+          # Check for .env pattern
+          if ! grep -qE '^\\.env$|^\\.env\\b' .gitignore; then
+            MISSING_PATTERNS="$MISSING_PATTERNS\n  - .env (environment files with secrets)"
+          fi
+
+          # Check for *.ck pattern
+          if ! grep -qE '^\*\\.ck$' .gitignore; then
+            MISSING_PATTERNS="$MISSING_PATTERNS\n  - *.ck (Claude Code cache files)"
+          fi
+
+          # Check for *.bak pattern
+          if ! grep -qE '^\*\\.bak$' .gitignore; then
+            MISSING_PATTERNS="$MISSING_PATTERNS\n  - *.bak (backup files)"
+          fi
+
+          # Check for node_modules/ pattern
+          if ! grep -qE '^node_modules/?$' .gitignore; then
+            MISSING_PATTERNS="$MISSING_PATTERNS\n  - node_modules/ (npm dependencies)"
+          fi
+
+          if [ -n "$MISSING_PATTERNS" ]; then
+            echo "ERROR: .gitignore is missing required patterns:"
+            echo -e "$MISSING_PATTERNS"
+            echo ""
+            echo "Please add these patterns to .gitignore to prevent accidental commits of sensitive files."
+            exit 1
+          fi
+
+          echo ".gitignore validation passed."
+
+      - name: Check for hardcoded account slugs
+        run: |
+          echo "Checking for potential hardcoded account slugs..."
+          # Pattern: /[0-9]{5,} - account slugs typically have 5+ digits
+          # Exclude documentation, examples, and test files
+          MATCHES=$(grep -rE '/[0-9]{5,}' \
+            --include="*.ts" \
+            --include="*.js" \
+            --include="*.sh" \
+            --exclude-dir=node_modules \
+            --exclude-dir=dist \
+            --exclude="*.test.ts" \
+            --exclude="*.test.js" \
+            . || true)
+
+          # Also check for ACCOUNT_SLUG=/[0-9] pattern
+          SLUG_MATCHES=$(grep -rE 'ACCOUNT_SLUG=["/]?[0-9]+' \
+            --include="*.ts" \
+            --include="*.js" \
+            --include="*.sh" \
+            --exclude-dir=node_modules \
+            --exclude-dir=dist \
+            --exclude=".env.example" \
+            . || true)
+
+          if [ -n "$MATCHES" ] || [ -n "$SLUG_MATCHES" ]; then
+            echo "WARNING: Potential hardcoded account slugs found:"
+            echo "$MATCHES"
+            echo "$SLUG_MATCHES"
+            echo ""
+            echo "Please review these matches. If they are legitimate (e.g., port numbers, timeouts),"
+            echo "consider adding a comment to clarify their purpose."
+            # Note: We warn but don't fail, as some numeric patterns may be legitimate
+          fi
+          echo "Account slug check completed."
+
       - name: Scan for secrets with gitleaks
         uses: gitleaks/gitleaks-action@v2
         env:

@@ -106,3 +106,6 @@ yarn-error.log*
 
 # Backup files
 *.bak
+
+# Claude Code embedding cache files
+*.ck

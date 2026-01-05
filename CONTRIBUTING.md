@@ -9,6 +9,7 @@ Thank you for your interest in contributing to fizzy-cli! This document provides
 - [Development Setup](#development-setup)
 - [Development Workflow](#development-workflow)
 - [Testing](#testing)
+- [Security Best Practices](#security-best-practices)
 - [Code Style](#code-style)
 - [Adding New Commands](#adding-new-commands)
 - [Documentation](#documentation)
@@ -232,6 +233,75 @@ Before submitting a PR, ensure:
 - [ ] Smoke tests pass: `./scripts/smoke-test.sh`
 - [ ] Manual testing completed
 - [ ] No sensitive data in commits (run `gitleaks detect`)
+
+## Security Best Practices
+
+Security is critical for fizzy-cli. Follow these guidelines to prevent accidental exposure of sensitive information.
+
+### Files That Should Never Be Committed
+
+**Claude Code Cache Files (*.ck)**
+- These files are created by Claude Code for embedding caches
+- They may contain sensitive code context or project information
+- Already in `.gitignore` - never remove this pattern
+- Pre-commit hook will block commits containing `.ck` files
+
+**Backup Files (*.bak)**
+- Editor and tool backup files may contain sensitive data
+- These are temporary files that don't belong in version control
+- Already in `.gitignore` - never remove this pattern
+- Pre-commit hook will block commits containing `.bak` files
+
+**Environment Files (.env, .env.local, etc.)**
+- Never commit `.env` files with real credentials
+- Use `.env.example` for documenting required variables (without values)
+- Store local development credentials only in `.env` (gitignored)
+
+### Credential Management
+
+**Never Hardcode:**
+- Account IDs or slugs (e.g., `/12345678`)
+- API tokens or keys
+- Passwords or secrets
+- Personal access tokens
+
+**Always Use:**
+- Environment variables for local development
+- GitHub Secrets for CI/CD workflows
+- `.env` files (which are gitignored) for local config
+
+### Pre-Commit Security Checks
+
+The pre-commit hook automatically checks for:
+1. `.ck` files in staged changes
+2. `.bak` files in staged changes
+3. Runs tests before allowing commits
+
+If the hook blocks your commit, unstage the problematic files:
+```bash
+git reset HEAD <filename>
+```
+
+### Secret Scanning
+
+Before committing, run gitleaks to scan for secrets:
+```bash
+# Scan working directory
+gitleaks detect --no-git --verbose
+
+# Scan git history
+gitleaks detect --verbose
+```
+
+CI automatically runs gitleaks on every push and pull request.
+
+### Reporting Security Issues
+
+If you discover a security vulnerability:
+1. **Do not** open a public issue
+2. Email the maintainers directly
+3. Provide detailed reproduction steps
+4. Allow reasonable time for a fix before disclosure
 
 ## Code Style
 

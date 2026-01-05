@@ -4,6 +4,18 @@
 title = "fizzy-cli gitleaks config"
 
 [[rules]]
+id = "claude-code-cache"
+description = "Claude Code embedding cache files should not be committed"
+path = '''\.ck$'''
+tags = ["cache", "claude-code"]
+
+[[rules]]
+id = "backup-files"
+description = "Backup files should not be committed"
+path = '''\.bak$'''
+tags = ["backup", "temporary"]
+
+[[rules]]
 id = "fizzy-token"
 description = "Fizzy Personal Access Token"
 regex = '''(?i)(fizzy[_-]?token|fizzy[_-]?pat|FIZZY_TOKEN)["\s:=]+[a-zA-Z0-9_-]{20,}'''

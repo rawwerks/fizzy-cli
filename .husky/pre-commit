@@ -1,0 +1,30 @@
+#!/bin/sh
+
+# Check for .ck (Claude Code cache) files in staged changes
+CK_FILES=$(git diff --cached --name-only | grep '\.ck$' || true)
+if [ -n "$CK_FILES" ]; then
+    echo "ERROR: Attempting to commit .ck (Claude Code cache) files:"
+    echo "$CK_FILES"
+    echo ""
+    echo "These files should not be committed. Please unstage them:"
+    echo "  git reset HEAD <file>"
+    echo ""
+    echo "Add *.ck to .gitignore to prevent this in the future."
+    exit 1
+fi
+
+# Check for .bak (backup) files in staged changes
+BAK_FILES=$(git diff --cached --name-only | grep '\.bak$' || true)
+if [ -n "$BAK_FILES" ]; then
+    echo "ERROR: Attempting to commit .bak (backup) files:"
+    echo "$BAK_FILES"
+    echo ""
+    echo "These files should not be committed. Please unstage them:"
+    echo "  git reset HEAD <file>"
+    echo ""
+    echo "Add *.bak to .gitignore to prevent this in the future."
+    exit 1
+fi
+
+# Run tests
+bun test
