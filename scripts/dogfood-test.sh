@@ -259,7 +259,6 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Reactions (3 endpoints)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-skip_test "List reactions (GET /comments/:id/reactions)" # P1 - Not implemented
 
 if [ -n "$CARD_NUMBER" ]; then
     # Create a comment to test reactions on
@@ -269,8 +268,13 @@ if [ -n "$CARD_NUMBER" ]; then
     if [ -n "$COMMENT_ID" ]; then
         test_cmd "Add reaction" reactions create --comment "$COMMENT_ID" --card "$CARD_NUMBER" --content "👍" --json
 
-        # Get reaction ID for delete test
-        REACTION_ID=$(eval "$CLI reactions create --comment '$COMMENT_ID' --card '$CARD_NUMBER' --content '❤️' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.id || \"\")'")
+        # Add another reaction for delete test
+        eval "$CLI reactions create --comment '$COMMENT_ID' --card '$CARD_NUMBER' --content '❤️' --json > /dev/null 2>&1"
+
+        test_cmd "List reactions" reactions list --comment "$COMMENT_ID" --card "$CARD_NUMBER" --json
+
+        # Get reaction ID from list for delete test
+        REACTION_ID=$(eval "$CLI reactions list --comment '$COMMENT_ID' --card '$CARD_NUMBER' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.id || \"\")'")
 
         if [ -n "$REACTION_ID" ]; then
             test_cmd "Delete reaction" reactions delete "$REACTION_ID" --comment "$COMMENT_ID" --card "$CARD_NUMBER" --json
@@ -280,7 +284,7 @@ if [ -n "$CARD_NUMBER" ]; then
         eval "$CLI comments delete '$COMMENT_ID' --card '$CARD_NUMBER' --json > /dev/null 2>&1" || true
     else
         echo "  ⏭️  Failed to create comment, skipping reaction tests"
-        ((SKIPPED+=2))
+        ((SKIPPED+=3))
     fi
 else
     echo "  ⏭️  No card available, skipping reaction tests"
@@ -366,8 +370,17 @@ USER_ID=$(eval "$CLI users list --json 2>/dev/null | bun -e 'const data = await 
 
 if [ -n "$USER_ID" ]; then
     test_cmd "Get user details" users get "$USER_ID" --json
-    skip_test "Update user (PUT /users/:id)" # P1 - Not implemented
-    skip_test "Deactivate user (DELETE /users/:id)" # P1 - Not implemented
+    test_cmd "Update user" users update "$USER_ID" --name "Test User (Dogfood)" --json
+
+    # Only test deactivate if we have a non-owner user (to avoid breaking the test account)
+    NON_OWNER_USER_ID=$(eval "$CLI users list --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); const nonOwner = data.find(u => u.role !== \"owner\"); console.log(nonOwner?.id || \"\")'")
+
+    if [ -n "$NON_OWNER_USER_ID" ]; then
+        test_cmd "Deactivate user" users deactivate "$NON_OWNER_USER_ID" --force --json
+    else
+        echo "  ⏭️  Skipping deactivate test (no non-owner user available)"
+        ((SKIPPED+=1))
+    fi
 else
     echo "  ⏭️  No users found"
     ((SKIPPED+=3))
@@ -392,7 +405,7 @@ else
     ((SKIPPED+=2))
 fi
 
-skip_test "Mark all notifications as read (POST /notifications/bulk_reading)" # P1 - Not implemented
+test_cmd "Mark all notifications as read" notifications mark-all-read --json
 
 # ============================================================================
 # FILE UPLOADS
