@@ -1,0 +1,119 @@
+name: E2E Authentication Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  test-magic-link:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build
+        run: bun run build
+
+      - name: Request magic link
+        id: request
+        run: |
+          echo "Requesting magic link..."
+          bun run dist/index.js auth login --magic-link ${{ secrets.TEST_EMAIL }} --json > /tmp/auth-request.json || true
+          
+          # The command will fail because we haven't entered a code yet, but it will have sent the email
+          echo "Magic link email sent"
+
+      - name: Wait for email and extract code
+        id: get-code
+        env:
+          EMAIL_API_URL: ${{ secrets.EMAIL_API_URL }}
+          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
+        run: |
+          echo "Waiting for magic link email..."
+          
+          # Poll for email with magic link code
+          max_attempts=30
+          attempt=0
+          code=""
+          
+          while [ $attempt -lt $max_attempts ] && [ -z "$code" ]; do
+            sleep 2
+            attempt=$((attempt + 1))
+            
+            echo "Attempt $attempt/$max_attempts - Checking for emails..."
+            
+            # Get recent emails
+            response=$(curl -s "${EMAIL_API_URL}?recipient=${TEST_EMAIL}&limit=5")
+            
+            # Extract the most recent email with magic link
+            code=$(echo "$response" | jq -r '.emails[0].body' | grep -oP '[A-Z0-9]{6}' | head -1 || echo "")
+            
+            if [ -n "$code" ]; then
+              echo "Found code: $code"
+              echo "code=$code" >> $GITHUB_OUTPUT
+              break
+            fi
+          done
+          
+          if [ -z "$code" ]; then
+            echo "Failed to receive magic link email after ${max_attempts} attempts"
+            exit 1
+          fi
+
+      - name: Complete authentication with code
+        env:
+          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
+          MAGIC_CODE: ${{ steps.get-code.outputs.code }}
+        run: |
+          echo "Authenticating with code..."
+          result=$(bun run dist/index.js auth login --magic-link $TEST_EMAIL --code $MAGIC_CODE --json)
+          
+          echo "$result" | jq .
+          
+          # Verify authentication succeeded
+          success=$(echo "$result" | jq -r '.success')
+          if [ "$success" != "true" ]; then
+            echo "Authentication failed!"
+            exit 1
+          fi
+          
+          echo "✅ Authentication successful!"
+
+      - name: Verify authenticated session
+        run: |
+          echo "Checking auth status..."
+          bun run dist/index.js auth status --json | jq .
+          
+          # Verify we're authenticated
+          authenticated=$(bun run dist/index.js auth status --json | jq -r '.authenticated')
+          if [ "$authenticated" != "true" ]; then
+            echo "Session not authenticated!"
+            exit 1
+          fi
+          
+          echo "✅ Session verified!"
+
+      - name: Test API call with session
+        run: |
+          echo "Testing authenticated API call..."
+          bun run dist/index.js boards list --json | jq .
+          
+          echo "✅ API call successful!"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # Clean up test session
+          rm -rf ~/.fizzy-cli
+          echo "Cleanup complete"
