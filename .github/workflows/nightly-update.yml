@@ -1,0 +1,132 @@
+name: Nightly Fizzy Update
+
+on:
+  schedule:
+    # Run at 2 AM UTC every day
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  update-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check for fizzy-api updates
+        id: check-updates
+        run: |
+          cd fizzy-api
+          git fetch origin
+          CURRENT_COMMIT=$(git rev-parse HEAD)
+          LATEST_COMMIT=$(git rev-parse origin/main)
+
+          if [ "$CURRENT_COMMIT" != "$LATEST_COMMIT" ]; then
+            echo "updates_available=true" >> $GITHUB_OUTPUT
+            echo "current=$CURRENT_COMMIT" >> $GITHUB_OUTPUT
+            echo "latest=$LATEST_COMMIT" >> $GITHUB_OUTPUT
+
+            # Get commit range for PR body
+            git log --oneline $CURRENT_COMMIT..$LATEST_COMMIT > /tmp/commits.txt
+            COMMIT_COUNT=$(wc -l < /tmp/commits.txt)
+            echo "commit_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "updates_available=false" >> $GITHUB_OUTPUT
+            echo "No updates available"
+          fi
+
+      - name: Update submodule
+        if: steps.check-updates.outputs.updates_available == 'true'
+        run: |
+          git submodule update --remote fizzy-api
+          cd fizzy-api
+          git checkout main
+          git pull origin main
+
+      - name: Install dependencies
+        if: steps.check-updates.outputs.updates_available == 'true'
+        run: bun install
+
+      - name: Run type check
+        if: steps.check-updates.outputs.updates_available == 'true'
+        run: bun run typecheck
+
+      - name: Run tests
+        if: steps.check-updates.outputs.updates_available == 'true'
+        run: bun test
+
+      - name: Build
+        if: steps.check-updates.outputs.updates_available == 'true'
+        run: bun run build
+
+      - name: Run smoke tests
+        if: steps.check-updates.outputs.updates_available == 'true'
+        run: ./scripts/smoke-test.sh
+
+      - name: Scan for secrets with gitleaks
+        if: steps.check-updates.outputs.updates_available == 'true'
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run dogfooding tests (optional)
+        if: steps.check-updates.outputs.updates_available == 'true' && secrets.FIZZY_TOKEN != ''
+        env:
+          FIZZY_TOKEN: ${{ secrets.FIZZY_TOKEN }}
+          FIZZY_BASE_URL: ${{ secrets.FIZZY_BASE_URL || 'https://app.fizzy.do' }}
+        run: ./scripts/dogfood-test.sh
+        continue-on-error: true  # Don't fail the workflow if dogfooding fails
+
+      - name: Create Pull Request
+        if: steps.check-updates.outputs.updates_available == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            Update fizzy-api submodule to latest
+
+            Updates fizzy-api from ${{ steps.check-updates.outputs.current }} to ${{ steps.check-updates.outputs.latest }}
+
+            This automated PR includes ${{ steps.check-updates.outputs.commit_count }} new commits from upstream Fizzy.
+          branch: nightly-update-fizzy-${{ github.run_number }}
+          delete-branch: true
+          title: 'chore: Update fizzy-api submodule (${{ steps.check-updates.outputs.commit_count }} commits)'
+          body: |
+            ## Automated Fizzy Update
+
+            This PR updates the `fizzy-api` submodule to the latest commit from upstream.
+
+            **Changes:**
+            - Current: `${{ steps.check-updates.outputs.current }}`
+            - Latest: `${{ steps.check-updates.outputs.latest }}`
+            - Commits: ${{ steps.check-updates.outputs.commit_count }}
+
+            **Testing:**
+            - ✅ Type check passed
+            - ✅ Tests passed
+            - ✅ Build succeeded
+
+            **View changes:** https://github.com/basecamp/fizzy/compare/${{ steps.check-updates.outputs.current }}...${{ steps.check-updates.outputs.latest }}
+
+            ---
+            🤖 Generated with [Claude Code](https://claude.com/claude-code)
+          labels: |
+            dependencies
+            automated

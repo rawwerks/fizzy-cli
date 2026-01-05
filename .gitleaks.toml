@@ -3,21 +3,41 @@
 
 title = "fizzy-cli gitleaks config"
 
+[[rules]]
+id = "fizzy-token"
+description = "Fizzy Personal Access Token"
+regex = '''(?i)(fizzy[_-]?token|fizzy[_-]?pat|FIZZY_TOKEN)["\s:=]+[a-zA-Z0-9_-]{20,}'''
+tags = ["fizzy", "token", "credentials"]
+
+[[rules]]
+id = "fizzy-api-key"
+description = "Fizzy API Key in code or config"
+regex = '''(?i)(fizzy[_-]?api[_-]?key)["\s:=]+[a-zA-Z0-9_-]{20,}'''
+tags = ["fizzy", "api-key", "credentials"]
+
 [allowlist]
-description = "Allowlist for test mock data"
+description = "Allowlist for test mock data and documentation"
 
 # Allowlist test files with mock tokens
 paths = [
     '''__tests__/.*\.test\.ts$''',
     '''__tests__/.*\.test\.js$''',
+    '''scripts/dogfood-test\.sh$''',  # Script references env vars, not actual tokens
+    '''\.github/workflows/.*\.yml$''', # Workflows use GitHub secrets
+    '''README\.md$''',  # Documentation with example tokens
+    '''node_modules/''',
 ]
 
-# Allowlist specific test values
+# Allowlist specific test values and examples
 regexTarget = "match"
 regexes = [
     '''pending_abc123''',
     '''test_token_''',
     '''mock_''',
+    '''your_token_here''',
+    '''example[_-]?token''',
+    '''FIZZY_TOKEN=\$''',  # Environment variable references
+    '''export FIZZY_TOKEN''',  # Shell export commands
 ]
 
 # Allowlist specific commits if needed

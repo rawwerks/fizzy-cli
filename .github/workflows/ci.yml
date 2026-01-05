@@ -30,3 +30,11 @@ jobs:
 
       - name: Build
         run: bun run build
+
+      - name: Run smoke tests
+        run: ./scripts/smoke-test.sh
+
+      - name: Scan for secrets with gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
