@@ -92,6 +92,7 @@ jobs:
         env:
           FIZZY_TOKEN: ${{ secrets.FIZZY_TOKEN }}
           FIZZY_BASE_URL: ${{ secrets.FIZZY_BASE_URL }}
+          FIZZY_ACCOUNT_SLUG: ${{ secrets.FIZZY_ACCOUNT_SLUG }}
         run: ./scripts/dogfood-test.sh
         continue-on-error: true  # Don't fail the workflow if dogfooding fails or secrets not set
 
