@@ -97,10 +97,10 @@ jobs:
           echo "$output"
           echo "=== End raw output ==="
 
-          # Extract JSON from output (last line starting with {)
-          result=$(echo "$output" | grep -E '^\{' | tail -1 || echo "{}")
+          # Extract JSON from output (from first { to end)
+          result=$(echo "$output" | sed -n '/{/,$ p')
 
-          if [ -z "$result" ] || [ "$result" = "{}" ]; then
+          if [ -z "$result" ]; then
             echo "Failed to extract JSON from output"
             exit 1
           fi
