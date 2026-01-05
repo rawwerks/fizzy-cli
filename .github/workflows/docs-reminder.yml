@@ -1,0 +1,78 @@
+name: Documentation Reminder
+
+on:
+  pull_request:
+    paths:
+      - 'src/commands/**'
+    types: [opened, synchronize]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  remind-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for new or modified commands
+        id: check
+        run: |
+          # Fetch the base branch
+          git fetch origin ${{ github.base_ref }}
+
+          # Check if PR modifies command files
+          NEW_OR_MODIFIED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep "src/commands/" | grep -v "__tests__" || true)
+
+          if [ -n "$NEW_OR_MODIFIED" ]; then
+            echo "has_command_changes=true" >> $GITHUB_OUTPUT
+            echo "Modified command files:"
+            echo "$NEW_OR_MODIFIED"
+          else
+            echo "has_command_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment on PR
+        if: steps.check.outputs.has_command_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = context.issue.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Check if we've already commented
+            const comments = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number,
+            });
+
+            const botComment = comments.data.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Documentation Checklist')
+            );
+
+            // Only comment if we haven't already
+            if (!botComment) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: `## 📚 Documentation Checklist
+
+This PR modifies command files. Please ensure:
+
+- [ ] All commands have examples in help text (use \`.addHelpText('after', ...)\`)
+- [ ] Run \`bun run docs\` to regenerate COMMANDS.md
+- [ ] Add usage examples to docs/EXAMPLES.md if appropriate
+- [ ] Update README.md if adding major features
+- [ ] Update CHANGELOG.md with your changes
+
+The CI will validate that documentation is up to date.
+
+**Tip:** Run \`bun run docs:report\` to see documentation completeness.`
+              });
+            }

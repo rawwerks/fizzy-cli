@@ -9,12 +9,22 @@ import { ReactionSchema, parseApiResponse } from '../schemas/api.js';
 import type { Reaction } from '../schemas/api.js';
 import { printOutput, printError, detectFormat, formatDate } from '../lib/output/formatter.js';
 import chalk from 'chalk';
+import {
+  validateCommentId,
+  validateReactionId,
+  validateEmoji,
+  validatePositiveInteger,
+} from '../lib/validation.js';
+import { confirmDelete } from '../lib/prompts.js';
 
 /**
  * List reactions for a comment
  */
 async function listReactions(options: { comment: string; card: string; json?: boolean; account?: string }): Promise<void> {
   try {
+    // Validate inputs
+    validatePositiveInteger(options.card, 'Card number');
+    validateCommentId(options.comment);
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
       auth: { type: 'bearer', token: auth.account.access_token },
@@ -49,6 +59,10 @@ async function listReactions(options: { comment: string; card: string; json?: bo
 
 /**
  * Create a reaction on a comment
+    // Validate inputs
+    validatePositiveInteger(options.card, 'Card number');
+    validateCommentId(options.comment);
+    validateEmoji(options.content);
  */
 async function createReaction(options: { comment: string; card: string; content: string; json?: boolean; account?: string }): Promise<void> {
   try {
@@ -138,4 +152,15 @@ export const reactionsCommand = new Command('reactions')
       .option('--json', 'Output in JSON format')
       .option('--account <slug>', 'Use specific Fizzy account')
       .action(deleteReaction)
-  );
+  )
+  .addHelpText('after', `
+Examples:
+  # List reactions on a comment
+  $ fizzy reactions list --card 42 --comment comment-id
+
+  # Add reaction to comment
+  $ fizzy reactions create --card 42 --comment comment-id --content "👍"
+
+  # Remove reaction
+  $ fizzy reactions delete reaction-id --card 42 --comment comment-id
+`);

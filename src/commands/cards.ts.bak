@@ -7,9 +7,22 @@ import { requireAuth } from '../middleware/auth.js';
 import { createClient } from '../lib/api/client.js';
 import { detectFormat, printOutput, printError, printStatus } from '../lib/output/formatter.js';
 import { CardSchema, parseApiResponse, type Card } from '../schemas/api.js';
+import { createEditor } from '../lib/editor.js';
+import { getTemplate, isValidTemplateType, type TemplateType } from '../lib/templates.js';
+import { marked } from 'marked';
+import TerminalRenderer from 'marked-terminal';
+import { confirmDelete } from '../lib/prompts.js';
 import { filterCards, parseDate, type CardFilters } from '../lib/filters.js';
 import chalk from 'chalk';
-import { confirmDelete } from '../lib/prompts.js';
+import {
+  validateBoardId,
+  validateCardIdentifier,
+  validateColumnId,
+  validateUserId,
+  validateRequiredString,
+  validateFilePath,
+  validateTagId,
+} from '../lib/validation.js';
 
 /**
  * Base options for card commands
@@ -17,6 +30,13 @@ import { confirmDelete } from '../lib/prompts.js';
 interface BaseOptions {
   json?: boolean;
   account?: string;
+}
+
+/**
+ * Options for cards get command
+ */
+interface GetOptions extends BaseOptions {
+  render?: boolean;
 }
 
 /**
@@ -42,6 +62,9 @@ interface CreateOptions extends BaseOptions {
   board: string;
   title: string;
   description?: string;
+  descriptionFile?: string;
+  edit?: boolean;
+  template?: string;
   status?: 'drafted' | 'published';
   image?: string;
 }
@@ -52,6 +75,8 @@ interface CreateOptions extends BaseOptions {
 interface UpdateOptions extends BaseOptions {
   title?: string;
   description?: string;
+  descriptionFile?: string;
+  edit?: boolean;
   status?: 'drafted' | 'published';
   image?: string;
 }
@@ -80,25 +105,7 @@ interface AssignOptions extends BaseOptions {
 }
 
 /**
- * List cards with optional filtering and sorting
- *
- * @example
- * ```bash
- * # List all cards
- * fizzy cards list
- *
- * # List cards for specific board
- * fizzy cards list --board abc123
- *
- * # Search cards with text
- * fizzy cards list --search "bug" --all
- *
- * # Filter by status
- * fizzy cards list --status closed
- * ```
- *
- * @param options - Command options including filters
- * @returns Promise that resolves when listing is complete
+ * List cards command
  */
 async function listCards(options: ListOptions): Promise<void> {
   try {
@@ -111,12 +118,16 @@ async function listCards(options: ListOptions): Promise<void> {
     // Build query parameters
     const params = new URLSearchParams();
     if (options.board) {
+      // Validate board ID
+      validateBoardId(options.board);
       params.append('board_ids[]', options.board);
     }
     if (options.status) {
       params.append('indexed_by', options.status);
     }
     if (options.tag) {
+      // Validate tag ID
+      validateTagId(options.tag);
       params.append('tag_ids[]', options.tag);
     }
 
@@ -186,26 +197,13 @@ function isCardId(value: string): boolean {
 }
 
 /**
- * Get detailed information about a specific card
- *
- * @example
- * ```bash
- * # Get card by number
- * fizzy cards get 42
- *
- * # Get card by ID
- * fizzy cards get abc123def456
- *
- * # Get with JSON output
- * fizzy cards get 42 --json
- * ```
- *
- * @param cardIdentifier - Card number or ID
- * @param options - Command options
- * @returns Promise that resolves when card details are displayed
+ * Get card details command
  */
-async function getCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
+async function getCard(cardIdentifier: string, options: GetOptions): Promise<void> {
   try {
+    // Validate card identifier
+    validateCardIdentifier(cardIdentifier);
+
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
       auth: { type: 'bearer', token: auth.account.access_token },
@@ -232,13 +230,22 @@ async function getCard(cardIdentifier: string, options: BaseOptions): Promise<vo
     if (format === 'json') {
       printOutput(card, format);
     } else {
+      // Setup marked for terminal rendering if --render is specified
+      if (options.render) {
+        marked.setOptions({
+          renderer: new TerminalRenderer() as any,
+        });
+      }
+
       // Transform data for table display
       const tableData = {
         Number: card.number,
         ID: card.id,
         Title: card.title,
         Status: card.status,
-        Description: card.description || 'N/A',
+        Description: options.render && card.description
+          ? marked(card.description)
+          : card.description || 'N/A',
         Board: card.board.name,
         Creator: card.creator.name,
         Golden: card.golden ? 'Yes' : 'No',
@@ -257,26 +264,17 @@ async function getCard(cardIdentifier: string, options: BaseOptions): Promise<vo
 }
 
 /**
- * Create a new card on a board
- *
- * @example
- * ```bash
- * # Create basic card
- * fizzy cards create --board abc123 --title "Fix bug"
- *
- * # Create with description and image
- * fizzy cards create --board abc123 --title "Feature" \
- *   --description "Add dark mode" --image ./screenshot.png
- *
- * # Create as draft
- * fizzy cards create --board abc123 --title "Draft" --status drafted
- * ```
- *
- * @param options - Command options including board, title, description
- * @returns Promise that resolves when card is created
+ * Create card command
  */
 async function createCard(options: CreateOptions): Promise<void> {
   try {
+    // Validate inputs
+    validateBoardId(options.board);
+    validateRequiredString(options.title, 'Card title');
+    if (options.image) {
+      await validateFilePath(options.image, ['jpg', 'jpeg', 'png', 'gif', 'webp'], 'Card image');
+    }
+
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
       auth: { type: 'bearer', token: auth.account.access_token },
@@ -287,8 +285,34 @@ async function createCard(options: CreateOptions): Promise<void> {
       title: options.title,
     };
 
-    if (options.description) {
-      payload.description = options.description;
+    // Handle description from various sources
+    let description = options.description;
+
+    // Template takes precedence
+    if (options.template) {
+      if (!isValidTemplateType(options.template)) {
+        throw new Error(`Invalid template type. Valid types: bug, feature, task`);
+      }
+      description = getTemplate(options.template as TemplateType);
+    }
+
+    // Description file overrides template
+    if (options.descriptionFile) {
+      const fs = await import('fs/promises');
+      try {
+        description = await fs.readFile(options.descriptionFile, 'utf-8');
+      } catch (error) {
+        throw new Error(`Failed to read description file: ${options.descriptionFile}`);
+      }
+    }
+
+    // Interactive editor overrides everything
+    if (options.edit) {
+      description = await createEditor(description || '', 'markdown');
+    }
+
+    if (description) {
+      payload.description = description;
     }
 
     if (options.status) {
@@ -372,6 +396,12 @@ async function resolveCardNumber(client: ReturnType<typeof createClient>, identi
  */
 async function updateCard(cardIdentifier: string, options: UpdateOptions): Promise<void> {
   try {
+    // Validate card identifier
+    validateCardIdentifier(cardIdentifier);
+    if (options.image) {
+      await validateFilePath(options.image, ['jpg', 'jpeg', 'png', 'gif', 'webp'], 'Card image');
+    }
+
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
       auth: { type: 'bearer', token: auth.account.access_token },
@@ -384,8 +414,35 @@ async function updateCard(cardIdentifier: string, options: UpdateOptions): Promi
       payload.title = options.title;
     }
 
-    if (options.description) {
-      payload.description = options.description;
+    // Handle description from various sources
+    let description = options.description;
+
+    // Description file
+    if (options.descriptionFile) {
+      const fs = await import('fs/promises');
+      try {
+        description = await fs.readFile(options.descriptionFile, 'utf-8');
+      } catch (error) {
+        throw new Error(`Failed to read description file: ${options.descriptionFile}`);
+      }
+    }
+
+    // Interactive editor - loads current card description if available
+    if (options.edit) {
+      // Fetch current card to get existing description
+      let currentDescription = '';
+      try {
+        const tempCardNumber = await resolveCardNumber(client, cardIdentifier);
+        const currentCard = await client.get<Card>(`cards/${tempCardNumber}`);
+        currentDescription = currentCard.description || '';
+      } catch {
+        // If we can't fetch the card, start with empty description
+      }
+      description = await createEditor(description || currentDescription, 'markdown');
+    }
+
+    if (description !== undefined) {
+      payload.description = description;
     }
 
     if (options.status) {
@@ -393,7 +450,7 @@ async function updateCard(cardIdentifier: string, options: UpdateOptions): Promi
     }
 
     if (Object.keys(payload).length === 0 && !options.image) {
-      printError(new Error('No update parameters provided. Use --title, --description, --status, or --image'));
+      printError(new Error('No update parameters provided. Use --title, --description, --description-file, --edit, --status, or --image'));
       process.exit(1);
     }
 
@@ -458,43 +515,18 @@ async function updateCard(cardIdentifier: string, options: UpdateOptions): Promi
 /**
  * Delete card command
  */
-async function deleteCard(cardIdentifier: string, options: BaseOptions & { force?: boolean }): Promise<void> {
+async function deleteCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
   try {
+    // Validate card identifier
+    validateCardIdentifier(cardIdentifier);
+
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
       auth: { type: 'bearer', token: auth.account.access_token },
       accountSlug: auth.account.account_slug,
     });
 
-    // Resolve card number and get card details for confirmation
     const cardNumber = await resolveCardNumber(client, cardIdentifier);
-
-    // Fetch card details to get the title for confirmation
-    let rawCard: Card;
-    if (isCardId(cardIdentifier)) {
-      const cards = await client.get<Card[]>(`cards?card_ids[]=${cardIdentifier}`);
-      if (cards.length === 0) {
-        throw new Error(`Card with ID "${cardIdentifier}" not found`);
-      }
-      rawCard = cards[0];
-    } else {
-      rawCard = await client.get<Card>(`cards/${cardNumber}`);
-    }
-    const card = parseApiResponse(CardSchema, rawCard, 'card details');
-
-    // Confirm deletion
-    const confirmed = await confirmDelete('card', `#${card.number} - ${card.title}`, options.force);
-    if (!confirmed) {
-      const format = detectFormat(options);
-      if (format === 'json') {
-        printOutput({ success: false, message: 'Delete cancelled' }, format);
-      } else {
-        printStatus('Delete cancelled');
-      }
-      return;
-    }
-
-    // Delete the card
     await client.delete(`cards/${cardNumber}`);
     const format = detectFormat(options);
 
@@ -514,6 +546,9 @@ async function deleteCard(cardIdentifier: string, options: BaseOptions & { force
  */
 async function closeCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
   try {
+    // Validate card identifier
+    validateCardIdentifier(cardIdentifier);
+
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
       auth: { type: 'bearer', token: auth.account.access_token },
@@ -540,6 +575,9 @@ async function closeCard(cardIdentifier: string, options: BaseOptions): Promise<
  */
 async function reopenCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
   try {
+    // Validate card identifier
+    validateCardIdentifier(cardIdentifier);
+
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
       auth: { type: 'bearer', token: auth.account.access_token },
@@ -566,6 +604,10 @@ async function reopenCard(cardIdentifier: string, options: BaseOptions): Promise
  */
 async function moveCard(cardIdentifier: string, options: MoveOptions): Promise<void> {
   try {
+    // Validate inputs
+    validateCardIdentifier(cardIdentifier);
+    validateColumnId(options.column);
+
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
       auth: { type: 'bearer', token: auth.account.access_token },
@@ -594,6 +636,9 @@ async function moveCard(cardIdentifier: string, options: MoveOptions): Promise<v
  */
 async function postponeCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
   try {
+    // Validate card identifier
+    validateCardIdentifier(cardIdentifier);
+
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
       auth: { type: 'bearer', token: auth.account.access_token },
@@ -620,6 +665,9 @@ async function postponeCard(cardIdentifier: string, options: BaseOptions): Promi
  */
 async function triageCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
   try {
+    // Validate card identifier
+    validateCardIdentifier(cardIdentifier);
+
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
       auth: { type: 'bearer', token: auth.account.access_token },
@@ -646,6 +694,9 @@ async function triageCard(cardIdentifier: string, options: BaseOptions): Promise
  */
 async function tagCard(cardIdentifier: string, options: TagOptions): Promise<void> {
   try {
+    // Validate card identifier
+    validateCardIdentifier(cardIdentifier);
+
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
       auth: { type: 'bearer', token: auth.account.access_token },
@@ -693,6 +744,12 @@ async function tagCard(cardIdentifier: string, options: TagOptions): Promise<voi
  */
 async function assignCard(cardIdentifier: string, options: AssignOptions): Promise<void> {
   try {
+    // Validate card identifier
+    validateCardIdentifier(cardIdentifier);
+    // Validate user IDs
+    options.add?.forEach(userId => validateUserId(userId));
+    options.remove?.forEach(userId => validateUserId(userId));
+
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
       auth: { type: 'bearer', token: auth.account.access_token },
@@ -740,6 +797,9 @@ async function assignCard(cardIdentifier: string, options: AssignOptions): Promi
  */
 async function watchCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
   try {
+    // Validate card identifier
+    validateCardIdentifier(cardIdentifier);
+
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
       auth: { type: 'bearer', token: auth.account.access_token },
@@ -751,6 +811,13 @@ async function watchCard(cardIdentifier: string, options: BaseOptions): Promise<
     const format = detectFormat(options);
 
     if (format === 'json') {
+    .option('--assignee <user>', 'Filter by assignee user ID')
+    .option('--search <query>', 'Search card titles and descriptions')
+    .option('--created-after <date>', 'Created after date (ISO 8601)')
+    .option('--created-before <date>', 'Created before date (ISO 8601)')
+    .option('--sort <field>', 'Sort by: created_at, updated_at, title, number (default: created_at)')
+    .option('--order <order>', 'Sort order: asc, desc (default: desc)')
+    .option('--all', 'Fetch all cards (use with filters for searching across all cards)')
       printOutput({ success: true, message: `Now watching card #${cardNumber}` }, format);
     } else {
       printStatus(`Now watching card #${cardNumber}`);
@@ -766,6 +833,9 @@ async function watchCard(cardIdentifier: string, options: BaseOptions): Promise<
  */
 async function unwatchCard(cardIdentifier: string, options: BaseOptions): Promise<void> {
   try {
+    // Validate card identifier
+    validateCardIdentifier(cardIdentifier);
+
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
       auth: { type: 'bearer', token: auth.account.access_token },
@@ -792,69 +862,15 @@ async function unwatchCard(cardIdentifier: string, options: BaseOptions): Promis
  */
 export function createCardsCommand(): Command {
   const cards = new Command('cards')
-    .description('Manage cards (tasks/issues)')
-    .addHelpText('after', `
-Examples:
-  # List all cards
-  $ fizzy cards list
-
-  # List cards for specific board
-  $ fizzy cards list --board abc123
-
-  # Search cards
-  $ fizzy cards list --search "bug" --all
-
-  # Filter cards by status
-  $ fizzy cards list --status closed
-
-  # Get card details
-  $ fizzy cards get 42
-
-  # Create a new card
-  $ fizzy cards create --board abc123 --title "Fix login bug"
-
-  # Create card with description and image
-  $ fizzy cards create --board abc123 --title "Feature" --description "Add dark mode" --image ./screenshot.png
-
-  # Update card title
-  $ fizzy cards update 42 --title "New title"
-
-  # Close a card
-  $ fizzy cards close 42
-
-  # Reopen a card
-  $ fizzy cards reopen 42
-
-  # Move card to column
-  $ fizzy cards move 42 --column column-id
-
-  # Tag a card
-  $ fizzy cards tag 42 --add "urgent" "bug"
-
-  # Assign users to card
-  $ fizzy cards assign 42 --add user-id-1 user-id-2
-
-  # Watch a card
-  $ fizzy cards watch 42
-
-  # Delete a card
-  $ fizzy cards delete 42
-`);
+    .description('Manage cards (tasks/issues)');
 
   // List cards
   cards
     .command('list')
     .description('List cards')
     .option('--board <id>', 'Filter by board ID')
-    .option('--status <status>', 'Filter by status: drafted, published, closed, not_now')
+    .option('--status <status>', 'Filter by status (e.g., closed, not_now, stalled, golden)')
     .option('--tag <id>', 'Filter by tag ID')
-    .option('--assignee <user>', 'Filter by assignee user ID')
-    .option('--search <query>', 'Search card titles and descriptions')
-    .option('--created-after <date>', 'Created after date (ISO 8601)')
-    .option('--created-before <date>', 'Created before date (ISO 8601)')
-    .option('--sort <field>', 'Sort by: created_at, updated_at, title, number (default: created_at)')
-    .option('--order <order>', 'Sort order: asc, desc (default: desc)')
-    .option('--all', 'Fetch all cards (use with filters for searching across all cards)')
     .option('--json', 'Output in JSON format')
     .option('--account <slug>', 'Account slug to use')
     .action(async (options: ListOptions) => {
@@ -868,7 +884,7 @@ Examples:
     .option('--render', 'Render Markdown description in terminal')
     .option('--json', 'Output in JSON format')
     .option('--account <slug>', 'Account slug to use')
-    .action(async (cardNumber: string, options: BaseOptions & { render?: boolean }) => {
+    .action(async (cardNumber: string, options: GetOptions) => {
       await getCard(cardNumber, options);
     });
 
@@ -912,8 +928,7 @@ Examples:
     .description('Delete a card')
     .option('--json', 'Output in JSON format')
     .option('--account <slug>', 'Account slug to use')
-    .option('--force', 'Skip confirmation prompt', false)
-    .action(async (cardNumber: string, options: BaseOptions & { force?: boolean }) => {
+    .action(async (cardNumber: string, options: BaseOptions) => {
       await deleteCard(cardNumber, options);
     });
 

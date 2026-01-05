@@ -9,11 +9,32 @@ import { CommentSchema, ReactionSchema, parseApiResponse } from '../schemas/api.
 import type { Comment, Reaction } from '../schemas/api.js';
 import { printOutput, printError, detectFormat, formatDate } from '../lib/output/formatter.js';
 import chalk from 'chalk';
+import {
+  validateCardIdentifier,
+  validateCommentId,
+  validateReactionId,
+  validateRequiredString,
+  validateEmoji,
+  validatePositiveInteger,
+} from '../lib/validation.js';
+import { filterComments, parseDate, type CommentFilters } from '../lib/filters.js';
+import { confirmDelete } from '../lib/prompts.js';
 
 /**
  * List comments for a card
  */
-async function listComments(cardNumber: string, options: { json?: boolean; account?: string }): Promise<void> {
+async function listComments(cardNumber: string, options: {
+  json?: boolean;
+  account?: string;
+  search?: string;
+  user?: string;
+  createdAfter?: string;
+  createdBefore?: string;
+  sort?: 'created_at' | 'updated_at';
+  order?: 'asc' | 'desc';
+}): Promise<void> {
+    // Validate card number
+    validatePositiveInteger(cardNumber, 'Card number');
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -22,12 +43,31 @@ async function listComments(cardNumber: string, options: { json?: boolean; accou
     });
 
     const commentsData = await client.get(`cards/${cardNumber}/comments`);
-    const comments = parseApiResponse(CommentSchema.array(), commentsData, 'comments list');
+    const allComments = parseApiResponse(CommentSchema.array(), commentsData, 'comments list');
+
+    // Apply client-side filters
+    const filters: CommentFilters = {};
+    if (options.search) filters.search = options.search;
+    if (options.user) filters.user = options.user;
+    if (options.createdAfter) filters.createdAfter = parseDate(options.createdAfter);
+    if (options.createdBefore) filters.createdBefore = parseDate(options.createdBefore);
+    if (options.sort) filters.sort = options.sort;
+    if (options.order) filters.order = options.order;
+
+    const comments = Object.keys(filters).length > 0 ? filterComments(allComments, filters) : allComments;
+    const totalComments = allComments.length;
+    const filteredCount = comments.length;
+
     const format = detectFormat(options);
 
     if (format === 'json') {
       printOutput(comments, format);
     } else {
+      // Show filter summary if filtering was applied
+      if (filteredCount < totalComments) {
+        console.log(chalk.gray(`Showing ${filteredCount} of ${totalComments} comments (filtered)\n`));
+      }
+
       // Transform data for table display
       const tableData = comments.map((comment) => ({
         ID: comment.id.substring(0, 13) + '...',
@@ -52,6 +92,9 @@ async function listComments(cardNumber: string, options: { json?: boolean; accou
  * Get comment details
  */
 async function getComment(cardNumber: string, commentId: string, options: { json?: boolean; account?: string }): Promise<void> {
+    // Validate inputs
+    validatePositiveInteger(cardNumber, 'Card number');
+    validateCommentId(commentId);
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -168,7 +211,7 @@ async function updateComment(cardNumber: string, commentId: string, options: { b
 /**
  * Delete a comment
  */
-async function deleteComment(cardNumber: string, commentId: string, options: { account?: string }): Promise<void> {
+async function deleteComment(cardNumber: string, commentId: string, options: { account?: string; force?: boolean; json?: boolean }): Promise<void> {
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -176,8 +219,31 @@ async function deleteComment(cardNumber: string, commentId: string, options: { a
       accountSlug: auth.account.account_slug,
     });
 
+    // Fetch comment details to get preview for confirmation
+    const commentData = await client.get(`cards/${cardNumber}/comments/${commentId}`);
+    const comment = parseApiResponse(CommentSchema, commentData, 'comment');
+
+    // Confirm deletion
+    const preview = comment.body.plain_text.substring(0, 50) + (comment.body.plain_text.length > 50 ? '...' : '');
+    const confirmed = await confirmDelete('comment', preview, options.force);
+    if (!confirmed) {
+      const format = detectFormat(options);
+      if (format === 'json') {
+        printOutput({ success: false, message: 'Delete cancelled' }, format);
+      } else {
+        console.log('Delete cancelled');
+      }
+      return;
+    }
+
+    // Delete the comment
     await client.delete(`cards/${cardNumber}/comments/${commentId}`);
-    console.log(chalk.green('✓ Comment deleted successfully'));
+    const format = detectFormat(options);
+    if (format === 'json') {
+      printOutput({ success: true, message: 'Comment deleted successfully' }, format);
+    } else {
+      console.log(chalk.green('✓ Comment deleted successfully'));
+    }
   } catch (error) {
     printError(error instanceof Error ? error : new Error('Failed to delete comment'));
     process.exit(1);
@@ -188,6 +254,10 @@ async function deleteComment(cardNumber: string, commentId: string, options: { a
  * Add a reaction to a comment
  */
 async function addReaction(cardNumber: string, commentId: string, emoji: string, options: { json?: boolean; account?: string }): Promise<void> {
+    // Validate inputs
+    validatePositiveInteger(cardNumber, 'Card number');
+    validateCommentId(commentId);
+    validateEmoji(emoji);
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -221,6 +291,10 @@ async function addReaction(cardNumber: string, commentId: string, emoji: string,
  * Remove a reaction from a comment
  */
 async function removeReaction(cardNumber: string, commentId: string, reactionId: string, options: { account?: string }): Promise<void> {
+    // Validate inputs
+    validatePositiveInteger(cardNumber, 'Card number');
+    validateCommentId(commentId);
+    validateReactionId(reactionId);
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -282,7 +356,9 @@ export const commentsCommand = new Command('comments')
       .description('Delete a comment')
       .argument('<card-number>', 'Card number')
       .argument('<comment-id>', 'Comment ID')
+      .option('--json', 'Output in JSON format')
       .option('--account <slug>', 'Use specific Fizzy account')
+      .option('--force', 'Skip confirmation prompt', false)
       .action(deleteComment)
   )
   .addCommand(
@@ -303,4 +379,27 @@ export const commentsCommand = new Command('comments')
       .argument('<reaction-id>', 'Reaction ID')
       .option('--account <slug>', 'Use specific Fizzy account')
       .action(removeReaction)
-  );
+  )
+  .addHelpText('after', `
+Examples:
+  # List all comments on a card
+  $ fizzy comments list 42
+
+  # Get specific comment
+  $ fizzy comments get 42 comment-id
+
+  # Create a comment
+  $ fizzy comments create 42 --body "Great work!"
+
+  # Update a comment
+  $ fizzy comments update 42 comment-id --body "Updated comment"
+
+  # Delete a comment
+  $ fizzy comments delete 42 comment-id
+
+  # Add reaction to comment
+  $ fizzy comments react 42 comment-id "👍"
+
+  # Remove reaction
+  $ fizzy comments unreact 42 comment-id reaction-id
+`);

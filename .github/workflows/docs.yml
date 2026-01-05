@@ -1,0 +1,97 @@
+name: Documentation Validation
+
+on:
+  pull_request:
+    paths:
+      - 'src/commands/**'
+      - 'docs/**'
+      - 'scripts/generate-docs.ts'
+  push:
+    branches: [master, main]
+
+jobs:
+  validate-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build CLI
+        run: bun run build
+
+      - name: Generate documentation
+        run: bun run docs
+
+      - name: Check if docs are up to date
+        run: |
+          if ! git diff --quiet docs/COMMANDS.md; then
+            echo "❌ docs/COMMANDS.md is out of date!"
+            echo "Run 'bun run docs' and commit the changes"
+            echo ""
+            echo "Diff:"
+            git diff docs/COMMANDS.md
+            exit 1
+          fi
+          echo "✅ Documentation is up to date"
+
+      - name: Validate help text has examples
+        run: |
+          # Build first
+          bun run build
+
+          # Check that main command groups have examples in help text
+          echo "Checking boards command..."
+          bun dist/index.js boards --help | grep -q "Examples:" || (echo "❌ boards missing examples" && exit 1)
+
+          echo "Checking cards command..."
+          bun dist/index.js cards --help | grep -q "Examples:" || (echo "❌ cards missing examples" && exit 1)
+
+          echo "Checking auth command..."
+          bun dist/index.js auth --help | grep -q "Examples:" || (echo "❌ auth missing examples" && exit 1)
+
+          echo "Checking columns command..."
+          bun dist/index.js columns --help | grep -q "Examples:" || (echo "❌ columns missing examples" && exit 1)
+
+          echo "Checking comments command..."
+          bun dist/index.js comments --help | grep -q "Examples:" || (echo "❌ comments missing examples" && exit 1)
+
+          echo "Checking steps command..."
+          bun dist/index.js steps --help | grep -q "Examples:" || (echo "❌ steps missing examples" && exit 1)
+
+          echo "Checking reactions command..."
+          bun dist/index.js reactions --help | grep -q "Examples:" || (echo "❌ reactions missing examples" && exit 1)
+
+          echo "Checking tags command..."
+          bun dist/index.js tags --help | grep -q "Examples:" || (echo "❌ tags missing examples" && exit 1)
+
+          echo "Checking users command..."
+          bun dist/index.js users --help | grep -q "Examples:" || (echo "❌ users missing examples" && exit 1)
+
+          echo "Checking notifications command..."
+          bun dist/index.js notifications --help | grep -q "Examples:" || (echo "❌ notifications missing examples" && exit 1)
+
+          echo "✅ All commands have examples in help text"
+
+      - name: Validate README links
+        run: |
+          # Check that README links to all docs
+          echo "Checking README links..."
+
+          grep -q "docs/COMMANDS.md" README.md || (echo "❌ README missing link to COMMANDS.md" && exit 1)
+          grep -q "docs/EXAMPLES.md" README.md || (echo "❌ README missing link to EXAMPLES.md" && exit 1)
+          grep -q "docs/TROUBLESHOOTING.md" README.md || (echo "❌ README missing link to TROUBLESHOOTING.md" && exit 1)
+
+          echo "✅ README links are valid"
+
+      - name: Run documentation report
+        run: |
+          if [ -f scripts/docs-report.ts ]; then
+            echo "Running documentation completeness report..."
+            bun run docs:report || true
+          fi

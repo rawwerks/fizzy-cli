@@ -15,6 +15,7 @@ import {
   type OutputFormat
 } from '../lib/output/formatter.js';
 import type { Column } from '../schemas/api.js';
+import { confirmDelete } from '../lib/prompts.js';
 
 /**
  * Global options interface
@@ -306,8 +307,10 @@ function createDeleteCommand(): Command {
     .requiredOption('--board <id>', 'Board ID')
     .option('--json', 'Output in JSON format')
     .option('--account <slug>', 'Use specific Fizzy account')
-    .action(async (id: string, options: { board: string } & GlobalOptions) => {
-      const spinner = startSpinner('Deleting column...');
+    .option('--force', 'Skip confirmation prompt', false)
+    .action(async (id: string, options: { board: string; force?: boolean } & GlobalOptions) => {
+      const format = detectFormat(options);
+      const spinner = format === 'json' ? null : startSpinner('Fetching column details...');
 
       try {
         const auth = await requireAuth({ accountSlug: options.account });
@@ -317,21 +320,40 @@ function createDeleteCommand(): Command {
           baseUrl: options.baseUrl,
         });
 
+        // Fetch column details to get the name for confirmation
+        const rawColumn = await client.get<Column>(
+          `/boards/${options.board}/columns/${id}`
+        );
+        const column = parseApiResponse(ColumnSchema, rawColumn, 'column details');
+
+        if (spinner) spinner.succeed(`Found column: ${column.name}`);
+
+        // Confirm deletion
+        const confirmed = await confirmDelete('column', column.name, options.force);
+        if (!confirmed) {
+          if (format === 'json') {
+            printOutput({ success: false, message: 'Delete cancelled' }, format);
+          } else {
+            printStatus('Delete cancelled');
+          }
+          return;
+        }
+
+        // Delete column
+        const deleteSpinner = format === 'json' ? null : startSpinner('Deleting column...');
         await client.delete<void>(
           `/boards/${options.board}/columns/${id}`
         );
 
-        spinner.succeed('Column deleted successfully');
-
-        const format = detectFormat(options);
+        if (deleteSpinner) deleteSpinner.succeed('Column deleted successfully');
 
         if (format === 'json') {
           printOutput({ success: true, message: 'Column deleted' }, format);
         } else {
-          printStatus(`Column ${id} deleted`);
+          printStatus(`Column ${column.name} deleted`);
         }
       } catch (error) {
-        spinner.fail('Failed to delete column');
+        if (spinner) spinner.fail('Failed to delete column');
         printError(error instanceof Error ? error : new Error('Failed to delete column'));
         process.exit(1);
       }
@@ -349,4 +371,27 @@ export const columnsCommand = new Command('columns')
   .addCommand(createGetCommand())
   .addCommand(createCreateCommand())
   .addCommand(createUpdateCommand())
-  .addCommand(createDeleteCommand());
+  .addCommand(createDeleteCommand())
+  .addHelpText('after', `
+Examples:
+  # List all columns on a board
+  $ fizzy columns list --board abc123
+
+  # Get column details
+  $ fizzy columns get column-id --board abc123
+
+  # Create a new column
+  $ fizzy columns create --board abc123 --name "In Progress" --color blue
+
+  # Update column name
+  $ fizzy columns update column-id --board abc123 --name "Done"
+
+  # Update column color
+  $ fizzy columns update column-id --board abc123 --color green
+
+  # Delete a column
+  $ fizzy columns delete column-id --board abc123
+
+  # Delete column without confirmation
+  $ fizzy columns delete column-id --board abc123 --force
+`);

@@ -82,7 +82,15 @@ export function createTagsCommand(): Command {
 
   command
     .description('Manage tags')
-    .addCommand(createListCommand());
+    .addCommand(createListCommand())
+    .addHelpText('after', `
+Examples:
+  # List all tags
+  $ fizzy tags list
+
+  # List tags in JSON format
+  $ fizzy tags list --json
+`);
 
   return command;
 }

@@ -15,6 +15,7 @@ import {
   type OutputFormat
 } from '../lib/output/formatter.js';
 import type { Step } from '../schemas/api.js';
+import { confirmDelete } from '../lib/prompts.js';
 
 /**
  * Global options interface
@@ -351,4 +352,24 @@ export const stepsCommand = new Command('steps')
   .addCommand(createGetCommand())
   .addCommand(createCreateCommand())
   .addCommand(createUpdateCommand())
-  .addCommand(createDeleteCommand());
+  .addCommand(createDeleteCommand())
+  .addHelpText('after', `
+Examples:
+  # List all steps on a card
+  $ fizzy steps list --card 42
+
+  # Get step details
+  $ fizzy steps get step-id --card 42
+
+  # Create a new step
+  $ fizzy steps create --card 42 --content "Review code"
+
+  # Update step content
+  $ fizzy steps update step-id --card 42 --content "Review and approve code"
+
+  # Mark step as completed
+  $ fizzy steps update step-id --card 42 --completed true
+
+  # Delete a step
+  $ fizzy steps delete step-id --card 42
+`);

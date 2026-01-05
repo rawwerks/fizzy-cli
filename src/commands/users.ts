@@ -10,7 +10,13 @@ import { requireAuth } from '../middleware/auth.js';
 import { createClient } from '../lib/api/client.js';
 import { UserSchema, parseApiResponse } from '../schemas/api.js';
 import { formatOutput, detectFormat, printError } from '../lib/output/formatter.js';
+import {
+  validateUserId,
+  validateFilePath,
+} from '../lib/validation.js';
 import { z } from 'zod';
+import { filterUsers, type UserFilters } from '../lib/filters.js';
+import chalk from 'chalk';
 
 /**
  * Users list command - list all users in the account
@@ -20,6 +26,11 @@ function createListCommand(): Command {
 
   command
     .description('List all users in the account')
+    .option('--role <role>', 'Filter by role: owner, admin, member, system')
+    .option('--active', 'Show only active users')
+    .option('--search <query>', 'Search by name or email')
+    .option('--sort <field>', 'Sort by: name, created_at (default: name)')
+    .option('--order <order>', 'Sort order: asc, desc (default: asc)')
     .option('--json', 'Output in JSON format')
     .option('--account <slug>', 'Account slug (optional, uses default if not provided)')
     .action(async (options) => {
@@ -37,11 +48,23 @@ function createListCommand(): Command {
         const rawUsers = await client.getAll('/users');
 
         // Validate API response
-        const users = parseApiResponse(
+        const allUsers = parseApiResponse(
           z.array(UserSchema),
           rawUsers,
           'users list'
         );
+
+        // Apply client-side filters
+        const filters: UserFilters = {};
+        if (options.role) filters.role = options.role;
+        if (options.active) filters.active = true;
+        if (options.search) filters.search = options.search;
+        if (options.sort) filters.sort = options.sort;
+        if (options.order) filters.order = options.order;
+
+        const users = Object.keys(filters).length > 0 ? filterUsers(allUsers, filters) : allUsers;
+        const totalUsers = allUsers.length;
+        const filteredCount = users.length;
 
         // Determine output format
         const format = detectFormat(options);
@@ -49,6 +72,11 @@ function createListCommand(): Command {
         if (format === 'json') {
           console.log(formatOutput(users, format));
         } else {
+          // Show filter summary if filtering was applied
+          if (filteredCount < totalUsers) {
+            console.log(chalk.gray(`Showing ${filteredCount} of ${totalUsers} users (filtered)\n`));
+          }
+
           // Transform data for table display
           const tableData = users.map((user) => ({
             ID: user.id,
@@ -89,6 +117,8 @@ function createGetCommand(): Command {
     .option('--account <slug>', 'Account slug (optional, uses default if not provided)')
     .action(async (id, options) => {
       try {
+        // Validate user ID
+        validateUserId(id);
         // Get authentication
         const auth = await requireAuth({ accountSlug: options.account });
 
@@ -197,6 +227,11 @@ function createUpdateCommand(): Command {
     .option('--account <slug>', 'Account slug (optional, uses default if not provided)')
     .action(async (id, options) => {
       try {
+        // Validate user ID
+        validateUserId(id);
+        if (options.avatar) {
+          await validateFilePath(options.avatar, ['jpg', 'jpeg', 'png', 'gif', 'webp'], 'Avatar image');
+        }
         // Get authentication
         const auth = await requireAuth({ accountSlug: options.account });
 
@@ -277,6 +312,8 @@ function createDeactivateCommand(): Command {
     .option('--account <slug>', 'Account slug (optional, uses default if not provided)')
     .action(async (id, options) => {
       try {
+        // Validate user ID
+        validateUserId(id);
         // Get authentication
         const auth = await requireAuth({ accountSlug: options.account });
 
@@ -332,7 +369,27 @@ export function createUsersCommand(): Command {
     .addCommand(createGetCommand())
     .addCommand(createMeCommand())
     .addCommand(createUpdateCommand())
-    .addCommand(createDeactivateCommand());
+    .addCommand(createDeactivateCommand())
+    .addHelpText('after', `
+Examples:
+  # List all users
+  $ fizzy users list
+
+  # Get user details
+  $ fizzy users get user-id
+
+  # Get your own profile
+  $ fizzy users me
+
+  # Update user name
+  $ fizzy users update user-id --name "New Name"
+
+  # Update user avatar
+  $ fizzy users update user-id --avatar ./profile.jpg
+
+  # Deactivate a user
+  $ fizzy users deactivate user-id
+`);
 
   return command;
 }

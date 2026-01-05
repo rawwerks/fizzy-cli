@@ -243,8 +243,8 @@ describe('Auth Commands', () => {
       }) as any;
 
       try {
-        const pendingToken = await magicLink.requestMagicLink('test@example.com');
-        expect(pendingToken).toBe('pending_abc123');
+        const response = await magicLink.requestMagicLink('test@example.com');
+        expect(response.pending_authentication_token).toBe('pending_abc123');
         expect(global.fetch).toHaveBeenCalledTimes(1);
       } finally {
         global.fetch = originalFetch;
@@ -427,6 +427,151 @@ describe('Auth Commands', () => {
 
       const account = await tokenStorage.getAccount('test-account');
       expect(account?.access_token).toBe('new_token_xyz');
+    });
+  });
+
+  describe('Polling for authentication', () => {
+    test('should poll for authentication and return session token when authenticated', async () => {
+      const originalFetch = global.fetch;
+      let callCount = 0;
+
+      global.fetch = mock(async (url: string, options?: any) => {
+        callCount++;
+
+        // Simulate authentication completing on third call
+        if (callCount >= 2) {
+          return new Response(
+            JSON.stringify({
+              accounts: [
+                {
+                  id: 'acc_123',
+                  name: 'Test Account',
+                  slug: 'test-account',
+                  created_at: '2025-01-01T00:00:00.000Z',
+                  user: {
+                    id: 'user_123',
+                    name: 'Test User',
+                    role: 'owner',
+                    active: true,
+                    email_address: 'test@example.com',
+                    created_at: '2025-01-01T00:00:00.000Z',
+                    url: 'https://app.fizzy.do/users/user_123',
+                  },
+                },
+              ],
+            }),
+            {
+              status: 200,
+              headers: {
+                'Content-Type': 'application/json',
+                'set-cookie': 'session_token=session_xyz789; Path=/; HttpOnly',
+              },
+            }
+          );
+        }
+
+        // Not authenticated yet
+        return new Response(null, { status: 401 });
+      }) as any;
+
+      try {
+        const sessionToken = await magicLink.pollForAuth('pending_abc123', 10000, 100);
+        expect(sessionToken).toBe('session_xyz789');
+        expect(callCount).toBeGreaterThanOrEqual(2);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    test('should timeout if authentication is not completed', async () => {
+      const originalFetch = global.fetch;
+
+      global.fetch = mock(async () => {
+        // Always return not authenticated
+        return new Response(null, { status: 401 });
+      }) as any;
+
+      try {
+        await expect(async () => {
+          await magicLink.pollForAuth('pending_abc123', 500, 100);
+        }).toThrow('Authentication timed out');
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    test('should check auth status correctly', async () => {
+      const originalFetch = global.fetch;
+
+      global.fetch = mock(async () => {
+        return new Response(
+          JSON.stringify({ accounts: [] }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'set-cookie': 'session_token=test_token_123; Path=/; HttpOnly',
+            },
+          }
+        );
+      }) as any;
+
+      try {
+        const sessionToken = await magicLink.checkAuthStatus('pending_abc123');
+        expect(sessionToken).toBe('test_token_123');
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    test('should return null when auth status check fails', async () => {
+      const originalFetch = global.fetch;
+
+      global.fetch = mock(async () => {
+        return new Response(null, { status: 401 });
+      }) as any;
+
+      try {
+        const sessionToken = await magicLink.checkAuthStatus('pending_abc123');
+        expect(sessionToken).toBeNull();
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  });
+
+  describe('Save accounts from identity', () => {
+    test('should save accounts from identity response', async () => {
+      const identity = {
+        accounts: [
+          {
+            id: 'acc_123',
+            name: 'Test Account',
+            slug: 'test-account',
+            created_at: '2025-01-01T00:00:00.000Z',
+            user: {
+              id: 'user_123',
+              name: 'Test User',
+              role: 'owner' as const,
+              active: true,
+              email_address: 'test@example.com',
+              created_at: '2025-01-01T00:00:00.000Z',
+              url: 'https://app.fizzy.do/users/user_123',
+            },
+          },
+        ],
+      };
+
+      const accounts = await magicLink.saveAccountsFromIdentity('session_token_123', identity);
+
+      expect(accounts).toHaveLength(1);
+      expect(accounts[0].account_slug).toBe('test-account');
+      expect(accounts[0].access_token).toBe('session_token_123');
+
+      // Verify it was saved to storage
+      const savedAccount = await tokenStorage.getAccount('test-account');
+      expect(savedAccount).not.toBeNull();
+      expect(savedAccount?.access_token).toBe('session_token_123');
     });
   });
 });
