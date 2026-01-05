@@ -1,61 +1,103 @@
-# fizzy-cli
+# @raw-works/fizzy-cli
 
-A powerful command-line interface for the Fizzy API with 100% API coverage, providing full control over your Fizzy boards, cards, and workflows from the terminal.
+**The most comprehensive CLI for [Fizzy](https://fizzy.do) - 100% API coverage, battle-tested, production-ready.**
 
-## Why fizzy-cli?
+Manage your Fizzy boards, cards, and workflows from the terminal. Automate everything. Ship faster.
 
-- **100% API Coverage**: Access all 55 Fizzy API endpoints directly from your terminal
-- **Fast & Efficient**: Manage boards and cards faster than clicking through the web UI
-- **Scriptable**: Automate workflows, create cards from scripts, bulk operations
-- **Developer-Friendly**: JSON output for easy integration with other tools
-- **File Upload Support**: Upload card images and user avatars directly from CLI
-- **Offline Token Storage**: Secure local authentication with support for multiple accounts
-- **Rich Output**: Beautiful table formatting for human-readable output
+## 🚀 Quick Start
 
-## Features
-
-- **Boards**: Full CRUD operations for boards
-- **Cards**: Create, update, move, close, tag, assign, and watch cards
-- **Columns**: Manage board columns and card organization
-- **Steps**: Complete checklist/todo management for cards
-- **Comments**: Add, edit, and manage card comments
-- **Reactions**: React to comments with emojis
-- **Tags**: List and manage tags across your account
-- **Users**: View and manage account users, update profiles
-- **Notifications**: Read, manage, and bulk-update notifications
-- **Authentication**: PAT (Personal Access Token) and magic link support
-- **Multi-Account**: Switch between multiple Fizzy accounts seamlessly
-
-## Installation
-
-### Install from npm (Recommended)
+**No installation required** - use bunx or npx:
 
 ```bash
-npm install -g fizzy-cli
+# List your boards (with bunx - fastest!)
+bunx @raw-works/fizzy-cli boards list
+
+# Create a card (with npx)
+npx @raw-works/fizzy-cli cards create --board <board-id> --title "Ship it!"
+
+# Or install globally
+npm install -g @raw-works/fizzy-cli
+fizzy boards list
 ```
 
-### Install from Source
+## ⚡️ Installation
+
+Choose your preferred method:
+
+### Option 1: bunx (Fastest)
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/fizzy-cli.git
-cd fizzy-cli
+# Bun's npx equivalent - much faster:
+bunx @raw-works/fizzy-cli <command>
 
-# Install dependencies
-bun install
-
-# Build the CLI
-bun run build
-
-# Link for global usage (optional)
-npm link
+# Example: create a card
+bunx @raw-works/fizzy-cli cards create --board abc123 --title "New card"
 ```
 
-### System Requirements
+### Option 2: npx (No Installation)
 
-- **Bun** (recommended): v1.0.0 or higher
-- **Node.js**: v18.0.0 or higher (for npm installation)
-- **Operating Systems**: Linux, macOS, Windows (WSL recommended)
+```bash
+# Run any command without installing:
+npx @raw-works/fizzy-cli <command>
+
+# Example: list boards
+npx @raw-works/fizzy-cli boards list
+```
+
+### Option 3: Global Install
+
+```bash
+# Install once, use everywhere:
+npm install -g @raw-works/fizzy-cli
+
+# Now just use 'fizzy':
+fizzy boards list
+fizzy cards create --board abc123 --title "New card"
+```
+
+### Option 4: Local Project
+
+```bash
+# Add to your project:
+npm install @raw-works/fizzy-cli
+
+# Use via package.json scripts or npx:
+npx fizzy boards list
+```
+
+## 💡 Why This CLI?
+
+- ✅ **100% API Coverage** - All 55 Fizzy endpoints supported
+- ✅ **Zero Config** - Works with npx, no setup needed
+- ✅ **Type Safe** - Built with TypeScript, validated with Zod
+- ✅ **Battle Tested** - 293 tests, dogfooded daily
+- ✅ **Rich Features** - File uploads, search, filters, retries, confirmations
+- ✅ **Great DX** - Markdown support, templates, auto-complete ready
+- ✅ **Multi-Account** - Switch between Fizzy accounts seamlessly
+- ✅ **Scriptable** - JSON output for automation
+
+## 🎯 Features
+
+### Core Resources
+- **Boards**: Create, list, update, delete boards
+- **Cards**: Full lifecycle management - create, update, move, close, reopen, postpone, triage
+- **Columns**: Organize your board workflows
+- **Steps**: Checklists and todos for cards
+- **Comments**: Discuss and collaborate
+- **Reactions**: React with emojis
+- **Tags**: Organize and filter
+- **Users**: Manage team members
+- **Notifications**: Stay updated
+
+### Power Features
+- 📁 **File Uploads**: Card images, user avatars
+- 🔍 **Search & Filter**: Advanced filtering, sorting, date ranges
+- 📝 **Rich Text**: Markdown support with templates (bug, feature, task)
+- ✅ **Validation**: Client-side validation for better error messages
+- 🔄 **Retries**: Automatic retry with exponential backoff
+- ⚠️  **Confirmations**: Prevent accidents with delete confirmations
+- 📄 **Pagination**: Handle large datasets efficiently
+- 🎨 **Beautiful Output**: Tables, colors, spinners
 
 ## Quick Start
 
