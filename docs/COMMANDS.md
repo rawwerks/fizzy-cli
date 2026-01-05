@@ -3,7 +3,7 @@
 Auto-generated from CLI source code.
 
 > This documentation is automatically generated from the CLI command definitions.
-> Last updated: 2026-01-05T19:08:52.254Z
+> Last updated: 2026-01-05T23:11:29.119Z
 
 ## Table of Contents
 
@@ -51,6 +51,7 @@ fizzy login [email] [options]
 - `--json` - Output in JSON format
 - `--token <token>` - Personal Access Token (from https://app.fizzy.do/my/access_tokens)
 - `--magic-link` - Use magic link authentication instead of PAT
+- `--code <code>` - Magic link code (6 characters, use with --magic-link for non-interactive auth)
 - `--no-browser` - Do not automatically open browser for authentication
 - `--wait` - Wait for authentication to complete (polls for completion)
 - `--timeout <seconds>` - Timeout in seconds when using --wait (default: 300) (default: "300")

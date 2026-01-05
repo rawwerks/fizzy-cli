@@ -52,7 +52,7 @@ describe('validateEmail', () => {
   it('should provide helpful error messages', () => {
     try {
       validateEmail('invalid');
-      expect.fail('Should have thrown');
+      throw new Error('Should have thrown');
     } catch (error) {
       expect(error).toBeInstanceOf(ValidationError);
       expect((error as Error).message).toContain('Invalid email address');
@@ -81,7 +81,7 @@ describe('validateUrl', () => {
   it('should use custom field name in error messages', () => {
     try {
       validateUrl('invalid', 'Avatar URL');
-      expect.fail('Should have thrown');
+      throw new Error('Should have thrown');
     } catch (error) {
       expect(error).toBeInstanceOf(ValidationError);
       expect((error as Error).message).toContain('Avatar URL');
@@ -111,7 +111,7 @@ describe('validateUUID', () => {
   it('should use custom field name in error messages', () => {
     try {
       validateUUID('invalid', 'Board ID');
-      expect.fail('Should have thrown');
+      throw new Error('Should have thrown');
     } catch (error) {
       expect(error).toBeInstanceOf(ValidationError);
       expect((error as Error).message).toContain('Board ID');
@@ -141,7 +141,7 @@ describe('validatePositiveInteger', () => {
   it('should include field name and value in error message', () => {
     try {
       validatePositiveInteger('invalid', 'Card number');
-      expect.fail('Should have thrown');
+      throw new Error('Should have thrown');
     } catch (error) {
       expect(error).toBeInstanceOf(ValidationError);
       expect((error as Error).message).toContain('Card number');
@@ -168,7 +168,7 @@ describe('validateRequiredString', () => {
   it('should include field name in error message', () => {
     try {
       validateRequiredString('', 'Comment body');
-      expect.fail('Should have thrown');
+      throw new Error('Should have thrown');
     } catch (error) {
       expect(error).toBeInstanceOf(ValidationError);
       expect((error as Error).message).toContain('Comment body');
@@ -239,7 +239,7 @@ describe('validateFilePath', () => {
   it('should include field name and allowed extensions in error message', async () => {
     try {
       await validateFilePath('/nonexistent/file.pdf', ['png', 'jpg'], 'Avatar');
-      expect.fail('Should have thrown');
+      throw new Error('Should have thrown');
     } catch (error) {
       expect(error).toBeInstanceOf(ValidationError);
       expect((error as Error).message).toContain('Avatar');
@@ -268,7 +268,7 @@ describe('validateCardIdentifier', () => {
   it('should use custom field name in error messages', () => {
     try {
       validateCardIdentifier('invalid', 'Card reference');
-      expect.fail('Should have thrown');
+      throw new Error('Should have thrown');
     } catch (error) {
       expect(error).toBeInstanceOf(ValidationError);
       expect((error as Error).message).toContain('Card reference');
@@ -312,7 +312,7 @@ describe('ID validators', () => {
     it('should include field name in error', () => {
       try {
         validateColumnId(invalid);
-        expect.fail('Should have thrown');
+        throw new Error('Should have thrown');
       } catch (error) {
         expect((error as Error).message).toContain('Column ID');
       }
@@ -332,7 +332,7 @@ describe('ID validators', () => {
     it('should include field name in error', () => {
       try {
         validateUserId(invalid);
-        expect.fail('Should have thrown');
+        throw new Error('Should have thrown');
       } catch (error) {
         expect((error as Error).message).toContain('User ID');
       }
@@ -352,7 +352,7 @@ describe('ID validators', () => {
     it('should include field name in error', () => {
       try {
         validateBoardId(invalid);
-        expect.fail('Should have thrown');
+        throw new Error('Should have thrown');
       } catch (error) {
         expect((error as Error).message).toContain('Board ID');
       }
@@ -372,7 +372,7 @@ describe('ID validators', () => {
     it('should include field name in error', () => {
       try {
         validateCommentId(invalid);
-        expect.fail('Should have thrown');
+        throw new Error('Should have thrown');
       } catch (error) {
         expect((error as Error).message).toContain('Comment ID');
       }
@@ -392,7 +392,7 @@ describe('ID validators', () => {
     it('should include field name in error', () => {
       try {
         validateReactionId(invalid);
-        expect.fail('Should have thrown');
+        throw new Error('Should have thrown');
       } catch (error) {
         expect((error as Error).message).toContain('Reaction ID');
       }
@@ -412,7 +412,7 @@ describe('ID validators', () => {
     it('should include field name in error', () => {
       try {
         validateTagId(invalid);
-        expect.fail('Should have thrown');
+        throw new Error('Should have thrown');
       } catch (error) {
         expect((error as Error).message).toContain('Tag ID');
       }
