@@ -40,17 +40,17 @@ jobs:
           MISSING_PATTERNS=""
 
           # Check for .env pattern
-          if ! grep -qE '^\\.env$|^\\.env\\b' .gitignore; then
+          if ! grep -qE '^\.env$|^\.env\b' .gitignore; then
             MISSING_PATTERNS="$MISSING_PATTERNS\n  - .env (environment files with secrets)"
           fi
 
           # Check for *.ck pattern
-          if ! grep -qE '^\*\\.ck$' .gitignore; then
+          if ! grep -qE '^\*\.ck$' .gitignore; then
             MISSING_PATTERNS="$MISSING_PATTERNS\n  - *.ck (Claude Code cache files)"
           fi
 
           # Check for *.bak pattern
-          if ! grep -qE '^\*\\.bak$' .gitignore; then
+          if ! grep -qE '^\*\.bak$' .gitignore; then
             MISSING_PATTERNS="$MISSING_PATTERNS\n  - *.bak (backup files)"
           fi
 

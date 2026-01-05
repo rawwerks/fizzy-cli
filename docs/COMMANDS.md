@@ -3,7 +3,6 @@
 Auto-generated from CLI source code.
 
 > This documentation is automatically generated from the CLI command definitions.
-> Last updated: 2026-01-05T23:11:29.119Z
 
 ## Table of Contents
 

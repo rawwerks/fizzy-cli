@@ -215,8 +215,7 @@ async function generateDocs(): Promise<void> {
     // Generate markdown
     let markdown = '# Command Reference\n\n';
     markdown += 'Auto-generated from CLI source code.\n\n';
-    markdown += '> This documentation is automatically generated from the CLI command definitions.\n';
-    markdown += '> Last updated: ' + new Date().toISOString() + '\n\n';
+    markdown += '> This documentation is automatically generated from the CLI command definitions.\n\n';
 
     markdown += '## Table of Contents\n\n';
     program.commands.forEach((cmd) => {
