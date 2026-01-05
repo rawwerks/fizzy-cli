@@ -57,7 +57,7 @@ jobs:
             response=$(curl -s "${EMAIL_API_URL}?recipient=${TEST_EMAIL}&limit=5")
             
             # Extract the most recent email with magic link
-            code=$(echo "$response" | jq -r '.emails[0].body' | grep -oP '[A-Z0-9]{6}' | head -1 || echo "")
+            code=$(echo "$response" | jq -r '.emails[0].textBody' | grep -oP '[A-Z0-9]{6}' | head -1 || echo "")
             
             if [ -n "$code" ]; then
               echo "Found code: $code"
