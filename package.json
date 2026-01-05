@@ -39,7 +39,7 @@
   ],
   "author": "Raymond Weitekamp",
   "license": "SEE LICENSE IN LICENSE.md",
-  "description": "CLI for Fizzy (https://fizzy.do) - 100% API coverage, battle-tested, production-ready",
+  "description": "CLI for Fizzy (https://fizzy.do)",
   "repository": {
     "type": "git",
     "url": "https://github.com/rawwerks/fizzy-cli.git"
