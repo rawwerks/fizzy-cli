@@ -184,22 +184,13 @@ export type Tag = z.infer<typeof TagSchema>;
 // =============================================================================
 
 /**
- * Column color object
- */
-export const ColumnColorSchema = z.object({
-  name: z.string(),
-  value: z.string(),
-});
-export type ColumnColor = z.infer<typeof ColumnColorSchema>;
-
-/**
  * Column object - represents workflow stages on a board
  * Source: API.md - Columns section
  */
 export const ColumnSchema = z.object({
   id: z.string(),
   name: z.string(),
-  color: ColumnColorSchema,
+  color: z.string(), // API returns CSS variable string like "var(--color-card-default)"
   created_at: z.string(),
 });
 export type Column = z.infer<typeof ColumnSchema>;

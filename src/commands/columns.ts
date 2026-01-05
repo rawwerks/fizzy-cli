@@ -66,7 +66,7 @@ function createListCommand(): Command {
           const tableData = columns.map((column) => ({
             ID: column.id,
             Name: column.name,
-            Color: column.color.name,
+            Color: column.color,
             'Created At': column.created_at,
           }));
 
@@ -125,7 +125,7 @@ function createGetCommand(): Command {
           const tableData = {
             ID: column.id,
             Name: column.name,
-            Color: column.color.name,
+            Color: column.color,
             'Created At': column.created_at,
           };
 
@@ -194,7 +194,7 @@ function createCreateCommand(): Command {
           const tableData = {
             ID: column.id,
             Name: column.name,
-            Color: column.color.name,
+            Color: column.color,
             'Created At': column.created_at,
           };
 
@@ -278,7 +278,7 @@ function createUpdateCommand(): Command {
           const tableData = {
             ID: column.id,
             Name: column.name,
-            Color: column.color.name,
+            Color: column.color,
             'Created At': column.created_at,
           };
 
