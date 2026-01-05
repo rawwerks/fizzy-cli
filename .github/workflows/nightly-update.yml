@@ -68,13 +68,13 @@ jobs:
         if: steps.check-updates.outputs.updates_available == 'true'
         run: bun run typecheck
 
-      - name: Run tests
-        if: steps.check-updates.outputs.updates_available == 'true'
-        run: bun test
-
       - name: Build
         if: steps.check-updates.outputs.updates_available == 'true'
         run: bun run build
+
+      - name: Run unit tests
+        if: steps.check-updates.outputs.updates_available == 'true'
+        run: bun test
 
       - name: Run smoke tests
         if: steps.check-updates.outputs.updates_available == 'true'
