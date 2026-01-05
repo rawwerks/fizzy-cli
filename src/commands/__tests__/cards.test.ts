@@ -92,3 +92,61 @@ describe('Card Schema Validation', () => {
     }
   });
 });
+
+describe('Card Operations Response Validation', () => {
+  test('should validate postpone operation success response', () => {
+    const postponeResponse = {
+      success: true,
+      message: 'Card #42 postponed successfully',
+    };
+    expect(postponeResponse.success).toBe(true);
+    expect(postponeResponse.message).toContain('postponed');
+  });
+
+  test('should validate triage operation success response', () => {
+    const triageResponse = {
+      success: true,
+      message: 'Card #42 sent to triage successfully',
+    };
+    expect(triageResponse.success).toBe(true);
+    expect(triageResponse.message).toContain('triage');
+  });
+
+  test('should validate tag operation success response', () => {
+    const tagResponse = {
+      success: true,
+      message: 'Card #42 tags updated',
+      operations: ['added "bug"', 'added "urgent"'],
+    };
+    expect(tagResponse.success).toBe(true);
+    expect(tagResponse.operations).toHaveLength(2);
+  });
+
+  test('should validate assign operation success response', () => {
+    const assignResponse = {
+      success: true,
+      message: 'Card #42 assignments updated',
+      operations: ['assigned user-123', 'unassigned user-456'],
+    };
+    expect(assignResponse.success).toBe(true);
+    expect(assignResponse.operations).toHaveLength(2);
+  });
+
+  test('should validate watch operation success response', () => {
+    const watchResponse = {
+      success: true,
+      message: 'Now watching card #42',
+    };
+    expect(watchResponse.success).toBe(true);
+    expect(watchResponse.message).toContain('watching');
+  });
+
+  test('should validate unwatch operation success response', () => {
+    const unwatchResponse = {
+      success: true,
+      message: 'Stopped watching card #42',
+    };
+    expect(unwatchResponse.success).toBe(true);
+    expect(unwatchResponse.message).toContain('Stopped watching');
+  });
+});

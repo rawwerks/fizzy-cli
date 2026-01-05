@@ -183,6 +183,87 @@ function createMeCommand(): Command {
 }
 
 /**
+ * Users update command - update user details
+ */
+function createUpdateCommand(): Command {
+  const command = new Command('update');
+
+  command
+    .description('Update user details')
+    .argument('<id>', 'User ID')
+    .option('--name <name>', 'User display name')
+    .option('--avatar <path>', 'Path to avatar image (jpg, png, gif, webp)')
+    .option('--json', 'Output in JSON format')
+    .option('--account <slug>', 'Account slug (optional, uses default if not provided)')
+    .action(async (id, options) => {
+      try {
+        // Get authentication
+        const auth = await requireAuth({ accountSlug: options.account });
+
+        // Create API client
+        const client = createClient({
+          auth: { type: 'bearer', token: auth.account.access_token },
+          accountSlug: auth.account.account_slug,
+        });
+
+        // Build payload
+        const payload: Record<string, unknown> = {};
+        if (options.name) {
+          payload.name = options.name;
+        }
+
+        if (!options.name && !options.avatar) {
+          printError(new Error('No update parameters provided. Use --name or --avatar'));
+          process.exit(1);
+        }
+
+        // If avatar is provided, use multipart/form-data upload
+        if (options.avatar) {
+          // Validate file exists
+          const fs = await import('fs/promises');
+          try {
+            await fs.access(options.avatar);
+          } catch {
+            throw new Error(`Avatar file not found: ${options.avatar}`);
+          }
+
+          // Validate file extension
+          const ext = options.avatar.split('.').pop()?.toLowerCase();
+          const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+          if (!ext || !validExtensions.includes(ext)) {
+            throw new Error(`Invalid image format. Supported formats: ${validExtensions.join(', ')}`);
+          }
+
+          await client.uploadFile(
+            `/users/${id}`,
+            options.avatar,
+            'user[avatar]',
+            { user: payload },
+            'PUT'
+          );
+        } else {
+          // Regular JSON request
+          await client.put(`/users/${id}`, { user: payload });
+        }
+
+        // Determine output format
+        const format = detectFormat(options);
+
+        if (format === 'json') {
+          console.log(formatOutput({ success: true, message: 'User updated successfully' }, format));
+        } else {
+          console.log('User updated successfully');
+        }
+      } catch (error) {
+        printError(error instanceof Error ? error : new Error('Failed to update user'));
+        process.exit(1);
+      }
+    });
+
+  return command;
+}
+
+/**
  * Users command group
  */
 export function createUsersCommand(): Command {
@@ -192,7 +273,8 @@ export function createUsersCommand(): Command {
     .description('Manage users')
     .addCommand(createListCommand())
     .addCommand(createGetCommand())
-    .addCommand(createMeCommand());
+    .addCommand(createMeCommand())
+    .addCommand(createUpdateCommand());
 
   return command;
 }

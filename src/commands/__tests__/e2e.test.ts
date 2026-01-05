@@ -68,6 +68,7 @@ describe("E2E: CLI Workflows", () => {
       "comments",
       "tags",
       "columns",
+      "steps",
       "notifications",
     ];
 
@@ -76,6 +77,68 @@ describe("E2E: CLI Workflows", () => {
         const output = runCLI(`${command} --help`);
         expect(output).toContain(command);
       });
+    });
+  });
+
+  describe("Cards Commands", () => {
+    const cardCommands = [
+      "list",
+      "get",
+      "create",
+      "update",
+      "delete",
+      "close",
+      "reopen",
+      "move",
+      "postpone",
+      "triage",
+      "tag",
+      "assign",
+      "watch",
+      "unwatch",
+    ];
+
+    cardCommands.forEach((subcommand) => {
+      it(`cards ${subcommand} command exists`, () => {
+        const output = runCLI(`cards ${subcommand} --help`);
+        expect(output).toContain(subcommand);
+      });
+    });
+
+    it("cards postpone requires card number", () => {
+      const output = runCLI("cards postpone --help");
+      expect(output).toContain("postpone");
+      expect(output).toContain("number");
+    });
+
+    it("cards triage requires card number", () => {
+      const output = runCLI("cards triage --help");
+      expect(output).toContain("triage");
+      expect(output).toContain("number");
+    });
+
+    it("cards tag supports add and remove options", () => {
+      const output = runCLI("cards tag --help");
+      expect(output).toContain("--add");
+      expect(output).toContain("--remove");
+    });
+
+    it("cards assign supports add and remove options", () => {
+      const output = runCLI("cards assign --help");
+      expect(output).toContain("--add");
+      expect(output).toContain("--remove");
+    });
+
+    it("cards watch requires card number", () => {
+      const output = runCLI("cards watch --help");
+      expect(output).toContain("watch");
+      expect(output).toContain("number");
+    });
+
+    it("cards unwatch requires card number", () => {
+      const output = runCLI("cards unwatch --help");
+      expect(output).toContain("unwatch");
+      expect(output).toContain("number");
     });
   });
 
