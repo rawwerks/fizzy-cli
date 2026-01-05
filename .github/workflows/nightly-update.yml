@@ -87,12 +87,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run dogfooding tests (optional)
-        if: steps.check-updates.outputs.updates_available == 'true' && secrets.FIZZY_TOKEN != ''
+        if: steps.check-updates.outputs.updates_available == 'true'
         env:
           FIZZY_TOKEN: ${{ secrets.FIZZY_TOKEN }}
-          FIZZY_BASE_URL: ${{ secrets.FIZZY_BASE_URL || 'https://app.fizzy.do' }}
+          FIZZY_BASE_URL: ${{ secrets.FIZZY_BASE_URL }}
         run: ./scripts/dogfood-test.sh
-        continue-on-error: true  # Don't fail the workflow if dogfooding fails
+        continue-on-error: true  # Don't fail the workflow if dogfooding fails or secrets not set
 
       - name: Create Pull Request
         if: steps.check-updates.outputs.updates_available == 'true'
