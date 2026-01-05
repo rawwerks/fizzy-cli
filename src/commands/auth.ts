@@ -9,6 +9,7 @@ import {
   authenticateWithMagicLink,
   getIdentity,
   requestMagicLink,
+  submitMagicLinkCode,
   pollForAuth,
   saveAccountsFromIdentity,
 } from '../lib/auth/magic-link.js';
@@ -59,10 +60,27 @@ async function authenticateWithPAT(token: string): Promise<StoredAccount[]> {
 
 /**
  * Prompt user for magic link code
- * Uses Bun's built-in prompt functionality
+ * Reads from stdin if available (for piping), otherwise prompts interactively
  */
 async function promptForCode(): Promise<string> {
-  // Using simple console input for Bun
+  // Check if stdin has data (e.g., echo "CODE" | fizzy auth login --magic-link ...)
+  if (!process.stdin.isTTY) {
+    const readline = await import('readline');
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      terminal: false,
+    });
+
+    return new Promise((resolve) => {
+      rl.once('line', (line) => {
+        rl.close();
+        resolve(line.trim().toUpperCase());
+      });
+    });
+  }
+
+  // Interactive prompt
   const readline = await import('readline');
   const rl = readline.createInterface({
     input: process.stdin,
@@ -85,6 +103,7 @@ const loginCommand = new Command('login')
   .option('--json', 'Output in JSON format')
   .option('--token <token>', 'Personal Access Token (from https://app.fizzy.do/my/access_tokens)')
   .option('--magic-link', 'Use magic link authentication instead of PAT')
+  .option('--code <code>', 'Magic link code (6 characters, use with --magic-link for non-interactive auth)')
   .option('--no-browser', 'Do not automatically open browser for authentication')
   .option('--wait', 'Wait for authentication to complete (polls for completion)')
   .option('--timeout <seconds>', 'Timeout in seconds when using --wait (default: 300)', '300')
@@ -93,6 +112,7 @@ const loginCommand = new Command('login')
     json?: boolean;
     token?: string;
     magicLink?: boolean;
+    code?: string;
     browser?: boolean;
     wait?: boolean;
     timeout?: string;
@@ -209,34 +229,118 @@ const loginCommand = new Command('login')
           if (spinner) spinner.text = 'Fetching account information...';
 
           // Get identity and save accounts
-          const identity = await getIdentity(sessionToken);
+          const identity = await getIdentity(sessionToken, 'session');
           accounts = await saveAccountsFromIdentity(sessionToken, identity);
         } else {
-          // Code flow (original behavior)
-          const result = await authenticateWithMagicLink(
-            userEmail,
-            async () => {
+          // Code flow with retry support
+          let magicLinkResponse;
+          const pendingTokenFile = `${process.env.HOME}/.fizzy-cli/pending_auth_token.json`;
+
+          // If --code is provided, try to use saved pending token
+          if (options.code) {
+            try {
+              const fs = await import('fs/promises');
+              const data = await fs.readFile(pendingTokenFile, 'utf-8');
+              const saved = JSON.parse(data);
+
+              if (saved.email === userEmail && Date.now() - saved.timestamp < 900000) { // 15 min expiry
+                magicLinkResponse = { pending_authentication_token: saved.pending_token };
+                if (spinner) spinner.text = 'Using saved session...';
+              } else {
+                throw new Error('Saved session expired');
+              }
+            } catch (error) {
+              if (spinner) spinner.text = 'Saved session not found, requesting new magic link...';
+              magicLinkResponse = await requestMagicLink(userEmail);
+
+              // Save the pending token for future retries
+              const fs = await import('fs/promises');
+              const dir = `${process.env.HOME}/.fizzy-cli`;
+              await fs.mkdir(dir, { recursive: true });
+              await fs.writeFile(pendingTokenFile, JSON.stringify({
+                email: userEmail,
+                pending_token: magicLinkResponse.pending_authentication_token,
+                timestamp: Date.now(),
+              }));
+            }
+          } else {
+            // No code provided, always request new magic link
+            magicLinkResponse = await requestMagicLink(userEmail);
+
+            // Save the pending token for --code usage
+            const fs = await import('fs/promises');
+            const dir = `${process.env.HOME}/.fizzy-cli`;
+            await fs.mkdir(dir, { recursive: true });
+            await fs.writeFile(pendingTokenFile, JSON.stringify({
+              email: userEmail,
+              pending_token: magicLinkResponse.pending_authentication_token,
+              timestamp: Date.now(),
+            }));
+          }
+
+          if (spinner) spinner.stop();
+          console.log('');
+          console.log(chalk.green('Magic link sent to:'), chalk.bold(userEmail));
+          console.log('');
+          console.log(chalk.gray('Next steps:'));
+          console.log(chalk.gray('  1. Check your email inbox (and spam folder)'));
+          console.log(chalk.gray('  2. Find the 6-character code in the email'));
+          console.log(chalk.gray('  3. Enter the code below'));
+          console.log(chalk.gray('     Or run: fizzy auth login --magic-link --code YOUR_CODE'));
+          console.log('');
+
+          const MAX_RETRIES = 5;
+          let sessionToken: string | null = null;
+          let attempts = 0;
+
+          while (attempts < MAX_RETRIES && !sessionToken) {
+            attempts++;
+
+            // Use provided code or prompt for it
+            const code = options.code || await promptForCode();
+
+            if (spinner) {
+              spinner.start('Verifying code...');
+            }
+
+            try {
+              sessionToken = await submitMagicLinkCode(code, magicLinkResponse.pending_authentication_token);
+            } catch (error) {
               if (spinner) spinner.stop();
-              console.log('');
-              console.log(chalk.green('Magic link sent to:'), chalk.bold(userEmail));
-              console.log('');
-              console.log(chalk.gray('Next steps:'));
-              console.log(chalk.gray('  1. Check your email inbox (and spam folder)'));
-              console.log(chalk.gray('  2. Find the 6-character code in the email'));
-              console.log(chalk.gray('  3. Enter the code below'));
-              console.log('');
 
-              const code = await promptForCode();
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-              if (spinner) {
-                spinner.start('Verifying code...');
+              // Check if it's a rate limit error (don't retry)
+              if (errorMessage.includes('Rate limit exceeded')) {
+                throw error;
               }
 
-              return code;
-            }
-          );
+              // Check if it's an invalid code error (allow retry)
+              if (errorMessage.includes('Invalid code') || errorMessage.includes('Unauthorized')) {
+                const remainingAttempts = MAX_RETRIES - attempts;
 
-          accounts = result.accounts;
+                if (remainingAttempts > 0) {
+                  console.log(chalk.red(`✖ Invalid code. ${remainingAttempts} attempt${remainingAttempts !== 1 ? 's' : ''} remaining.`));
+                  console.log('');
+                } else {
+                  throw new Error('Maximum retry attempts exceeded. Please run the login command again to get a new code.');
+                }
+              } else {
+                // Unknown error - don't retry
+                throw error;
+              }
+            }
+          }
+
+          if (!sessionToken) {
+            throw new Error('Failed to authenticate after multiple attempts.');
+          }
+
+          if (spinner) spinner.text = 'Fetching account information...';
+
+          // Get identity and save accounts
+          const identity = await getIdentity(sessionToken, 'session');
+          accounts = await saveAccountsFromIdentity(sessionToken, identity);
         }
       }
 

@@ -169,20 +169,29 @@ export async function submitMagicLinkCode(code: string, pendingToken: string): P
 }
 
 /**
- * Get user's identity and accounts using a session token
+ * Get user's identity and accounts using a token
  *
- * @param sessionToken - Session token from magic link authentication
+ * @param token - Access token (PAT or session token from magic link)
+ * @param tokenType - Type of token: 'bearer' for PAT, 'session' for magic link (default: 'bearer')
  * @returns Identity with list of accounts
  */
-export async function getIdentity(sessionToken: string): Promise<IdentityResponse> {
+export async function getIdentity(token: string, tokenType: 'bearer' | 'session' = 'bearer'): Promise<IdentityResponse> {
   const baseUrl = getBaseUrl();
   const url = `${baseUrl}/my/identity`;
 
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+  };
+
+  // PATs use Authorization header, session tokens use Cookie header
+  if (tokenType === 'session') {
+    headers.Cookie = `session_token=${token}`;
+  } else {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${sessionToken}`,
-      Accept: 'application/json',
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -297,7 +306,7 @@ export async function authenticateWithMagicLink(
   const sessionToken = await submitMagicLinkCode(code, magicLinkResponse.pending_authentication_token);
 
   // Step 4: Get identity and accounts
-  const identity = await getIdentity(sessionToken);
+  const identity = await getIdentity(sessionToken, 'session');
 
   // Step 5: Save all accounts
   const savedAccounts: StoredAccount[] = [];
