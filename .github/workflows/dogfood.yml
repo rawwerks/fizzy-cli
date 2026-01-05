@@ -54,119 +54,215 @@ jobs:
             echo "Dogfooding tests passed!"
           fi
 
+      - name: Parse test output and create detailed report
+        if: steps.check-failure.outputs.failed == 'true'
+        id: parse-output
+        run: |
+          # Extract test statistics from output
+          PASSED=$(grep "✅ Passed:" dogfood-output.txt | sed 's/.*: //' || echo "0")
+          FAILED=$(grep "❌ Failed:" dogfood-output.txt | sed 's/.*: //' || echo "0")
+          SKIPPED=$(grep "⏭️  Skipped:" dogfood-output.txt | sed 's/.*: //' || echo "0")
+          MISSING=$(grep "⚠️  Missing Features:" dogfood-output.txt | sed 's/.*: //' || echo "0")
+          COVERAGE=$(grep "Coverage:" dogfood-output.txt | sed 's/.*: //' | tr -d '%' || echo "0")
+
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          echo "skipped=$SKIPPED" >> $GITHUB_OUTPUT
+          echo "missing=$MISSING" >> $GITHUB_OUTPUT
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+
+          # Extract failed test names
+          FAILED_TESTS=$(grep "Error:" dogfood-output.txt | sed 's/.*Error: //' || echo "")
+          echo "failed_tests<<EOF" >> $GITHUB_OUTPUT
+          echo "$FAILED_TESTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create or update issue on failure
         if: steps.check-failure.outputs.failed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PASSED: ${{ steps.parse-output.outputs.passed }}
+          FAILED: ${{ steps.parse-output.outputs.failed }}
+          MISSING: ${{ steps.parse-output.outputs.missing }}
+          COVERAGE: ${{ steps.parse-output.outputs.coverage }}
         run: |
           # Check if there's an existing open dogfooding issue
           EXISTING_ISSUE=$(gh issue list --label "dogfooding,automated" --state open --json number --jq '.[0].number')
 
-          ISSUE_BODY="## 🍕 Dogfooding Test Failure - Action Required
+          ISSUE_BODY="## 🍕 Comprehensive Dogfooding Test Failure
 
           **Date:** $(date -u '+%Y-%m-%d at %H:%M UTC')
-          **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          **Workflow:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          **API Coverage:** ${COVERAGE}% (Target: 100%)
 
-          The nightly end-to-end dogfooding tests failed. These tests verify the CLI works correctly against a **real Fizzy instance** with actual API calls.
+          ### Test Results Summary
+
+          | Status | Count |
+          |--------|-------|
+          | ✅ Passed | $PASSED |
+          | ❌ Failed | $FAILED |
+          | ⏭️ Skipped | ${{ steps.parse-output.outputs.skipped }} |
+          | ⚠️ Missing | $MISSING |
 
           ---
 
           ## Test Output
 
+          <details>
+          <summary>Click to expand full test output</summary>
+
           \`\`\`
           $(cat dogfood-output.txt)
           \`\`\`
 
+          </details>
+
           ---
 
-          ## Your Task (Claude Agent Instructions)
+          ## 🤖 Claude Agent: Fix This Issue
 
-          You are a debugging agent tasked with fixing this dogfooding test failure. Follow these steps systematically:
+          You are a self-healing agent. This test suite validates **ALL 49 Fizzy API endpoints**. Your job is to ensure we never have untested or broken features again.
 
-          ### 1. Analyze the Failure
+          ### Step 1: Understand What Failed
 
-          - Read the test output above carefully
-          - Identify which specific test(s) failed
-          - Look for error messages, status codes, or authentication issues
+          The comprehensive dogfooding test (\`scripts/dogfood-test.sh\`) tests:
+          - ✅ **${PASSED} working endpoints** - These are implemented and passing
+          - ❌ **${FAILED} broken endpoints** - These are implemented but FAILING (fix these!)
+          - ⚠️ **${MISSING} missing endpoints** - These are not implemented yet (check beads for in-progress work)
 
-          ### 2. Understand the Test
+          **CRITICAL:** Distinguish between:
+          1. **Broken features** (❌) - Implemented code that's failing → FIX IMMEDIATELY
+          2. **Missing features** (⚠️) - Not implemented yet → Check beads issues for ongoing work
 
-          The dogfood test (\`scripts/dogfood-test.sh\`) does the following:
-          - Creates a temporary config directory with tokens.json
-          - Runs these API operations against the real Fizzy instance:
-            1. List boards
-            2. List users
-            3. List notifications
-            4. Get current user info
-            5. Check auth status
+          ### Step 2: Identify Root Cause
 
-          ### 3. Debug Locally
+          **If tests are failing (❌):**
+          - Schema validation errors → Check \`src/schemas/api.ts\` matches actual API responses
+          - Authentication errors → Check token storage in \`src/lib/auth/token-storage.ts\`
+          - API changes → Check \`fizzy-api\` submodule for recent changes
+          - Network/timeout errors → Check error handling in \`src/lib/api/client.ts\`
 
-          Run the test locally first:
+          **If missing features are reported (⚠️):**
+          - Check \`bd list --status=in_progress\` - Are subagents already implementing these?
+          - Check \`bd list --status=open\` - Are these tracked as issues?
+          - Review \`PRODUCTION_AUDIT.md\` for priority breakdown
+
+          ### Step 3: Investigate Locally
+
           \`\`\`bash
-          export FIZZY_TOKEN=\"<token_from_secrets>\"
-          export FIZZY_BASE_URL=\"https://app.fizzy.do\"
-          export FIZZY_ACCOUNT_SLUG=\"/6125212\"
-          ./scripts/dogfood-test.sh
+          # Clone and setup
+          git pull origin master
+
+          # Run comprehensive tests
+          ./scripts/dogfood-test.sh  # Requires FIZZY_TOKEN env var
+
+          # Check what's being worked on
+          bd list --status=in_progress
+          bd list --status=open --priority=0  # P0 critical issues
+
+          # Run unit tests
+          bun test
+
+          # Check for type errors
+          bun run typecheck
           \`\`\`
 
-          ### 4. Common Failure Scenarios
+          ### Step 4: Fix Broken Features (Priority 1)
 
-          **Authentication Issues:**
-          - Check if token format changed in tokens.json
-          - Verify auth middleware is correctly reading HOME env var
-          - Check if API authentication headers are correct
+          If **${FAILED} tests are failing**:
+          1. Read the error messages in the test output above
+          2. Identify which command/endpoint is failing
+          3. Check \`src/commands/<resource>.ts\` for that command
+          4. Check \`src/schemas/api.ts\` for schema validation
+          5. Test locally: \`bun dist/index.js <failing-command> --json\`
+          6. Fix the issue (schema, API client, command logic)
+          7. Run \`bun test\` to ensure tests pass
+          8. Run \`./scripts/dogfood-test.sh\` to verify the fix
+          9. Commit and push
 
-          **API Changes:**
-          - Fizzy API endpoints may have changed
-          - Check \`fizzy-api\` submodule for API changes
-          - Update CLI code to match new API spec
+          ### Step 5: Verify Implementation Progress
 
-          **Test Script Issues:**
-          - Verify tokens.json format matches what CLI expects
-          - Check if HOME directory override is working
-          - Ensure FIZZY_BASE_URL env var is properly used
+          If **${MISSING} features are missing**:
+          1. Run \`bd list --status=in_progress\` - check if subagents are working on these
+          2. Run \`bd stats\` - check overall project health
+          3. **DO NOT implement new features unless specifically asked** - focus on fixing broken ones first
+          4. If subagents are stuck, check their task output and help them debug
 
-          ### 5. Fix the Issue
+          ### Step 6: Validate Against Fizzy API
 
-          - Make necessary changes to CLI code or test script
-          - Run \`bun test\` to ensure unit tests still pass
-          - Run \`./scripts/dogfood-test.sh\` locally to verify fix
-          - Run \`./scripts/smoke-test.sh\` to ensure nothing broke
+          The comprehensive test validates ALL endpoints from \`fizzy-api/docs/API.md\`:
+          - Identity (1 endpoint)
+          - Boards (5 endpoints)
+          - Cards (12 endpoints)
+          - Comments (5 endpoints)
+          - Reactions (3 endpoints)
+          - Steps (4 endpoints)
+          - Tags (1 endpoint)
+          - Columns (5 endpoints)
+          - Users (4 endpoints)
+          - Notifications (4 endpoints)
+          - File uploads (2 operations)
 
-          ### 6. Commit and Verify
+          **Total: 49 API endpoints**
 
+          ### Step 7: Update Beads
+
+          After fixing issues:
           \`\`\`bash
-          git add <files>
-          git commit -m \"Fix dogfooding test: <description>\"
+          # Close fixed issues
+          bd close <issue-id> --reason=\"Fixed in commit <sha>\"
+
+          # Sync with git
+          bd sync
           git push
           \`\`\`
 
-          The workflow will run again on push and auto-close this issue if tests pass.
+          ### Step 8: Commit Your Fixes
+
+          \`\`\`bash
+          git add <changed-files>
+          git commit -m \"Fix dogfooding failures: <description>
+
+          - Fixed <specific-issue-1>
+          - Fixed <specific-issue-2>
+
+          Resolves <beads-issue-id>\"
+
+          bd sync  # Sync beads changes
+          git push
+          \`\`\`
 
           ---
 
-          ## Important Notes
+          ## Important Self-Healing Principles
 
-          - **Do not skip steps** - systematic debugging is critical
-          - **Test locally first** - don't rely solely on CI
-          - **Check recent changes** - review recent commits to fizzy-api submodule
-          - **Verify secrets** - ensure GitHub secrets are still valid
+          1. **Fix broken features first** - Missing features are tracked in beads, broken features need immediate attention
+          2. **Test locally before pushing** - Don't rely solely on CI to validate fixes
+          3. **Update schemas when API changes** - The Fizzy API evolves, schemas must stay in sync
+          4. **Check beads for in-progress work** - Don't duplicate effort if subagents are already working
+          5. **Use comprehensive tests** - This suite catches issues that unit tests miss
 
           ---
 
-          🤖 This issue was automatically created by the dogfooding workflow.
-          It will auto-close when tests pass."
+          🤖 **Auto-generated by:** Comprehensive Dogfooding Workflow
+          📊 **Current Coverage:** ${COVERAGE}% | **Target:** 100%
+          ✅ **Auto-closes when:** All tests pass"
 
           if [ -z "$EXISTING_ISSUE" ]; then
             # Create new issue
             gh issue create \
-              --title "🍕 Dogfooding tests failing" \
+              --title "🍕 Dogfooding: $FAILED failures, $MISSING missing features (${COVERAGE}% coverage)" \
               --body "$ISSUE_BODY" \
-              --label "dogfooding,automated,bug"
+              --label "dogfooding,automated,bug,P0"
           else
-            # Update existing issue
-            gh issue comment "$EXISTING_ISSUE" --body "$ISSUE_BODY"
+            # Update existing issue with new run
+            gh issue comment "$EXISTING_ISSUE" --body "## 🔄 New Test Run: $(date -u '+%Y-%m-%d at %H:%M UTC')
+
+            **Status:** ❌ Still failing
+            **Coverage:** ${COVERAGE}%
+            **Failed:** $FAILED | **Missing:** $MISSING | **Passed:** $PASSED
+
+            See full details above for updated test output and instructions."
             echo "Updated existing issue #$EXISTING_ISSUE"
           fi
 

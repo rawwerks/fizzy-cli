@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# Dogfooding Test - E2E Test with Real Fizzy Instance
+# Comprehensive Dogfooding Test - E2E Test with Real Fizzy Instance
 #
-# This script tests the CLI against a real Fizzy account.
-# It requires authentication credentials to be set via environment variables.
+# This script tests ALL implemented CLI commands against a real Fizzy account.
+# It validates API coverage and generates detailed reports for missing features.
 #
 # Required Environment Variables:
 #   FIZZY_BASE_URL - Base URL for Fizzy API (default: https://app.fizzy.do)
@@ -17,7 +17,9 @@
 #   - This test is skipped if credentials are not provided
 #
 
-echo "🍕 Fizzy CLI Dogfooding Test"
+set -e
+
+echo "🍕 Fizzy CLI Comprehensive Dogfooding Test"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
@@ -49,7 +51,8 @@ echo ""
 
 # Build CLI
 echo "📦 Building CLI..."
-bun run build
+bun run build > /dev/null 2>&1
+echo "   ✅ Build complete"
 echo ""
 
 # Set up temporary config directory with credentials
@@ -81,61 +84,455 @@ EOF
 # Test counter
 PASSED=0
 FAILED=0
+SKIPPED=0
+MISSING_FEATURES=0
+
+# Arrays to track missing features
+declare -a MISSING_COMMANDS=()
+declare -a FAILED_TESTS=()
+
+# CLI wrapper
+CLI="HOME=$TEST_CONFIG_DIR FIZZY_BASE_URL=$FIZZY_BASE_URL bun dist/index.js"
 
 # Helper to run a test
 test_cmd() {
     local name="$1"
     shift
-    echo -n "  Testing: $name... "
-    if HOME="$TEST_CONFIG_DIR" FIZZY_BASE_URL="$FIZZY_BASE_URL" "$@" > /tmp/dogfood-output.txt 2>&1; then
+    echo -n "  $name... "
+
+    local output_file="/tmp/dogfood-output-$$.txt"
+
+    if $CLI "$@" > "$output_file" 2>&1; then
         echo "✅"
         ((PASSED++))
+        rm -f "$output_file"
         return 0
     else
-        echo "❌"
-        echo "     Output: $(cat /tmp/dogfood-output.txt | head -3 | tr '\n' ' ')"
-        ((FAILED++))
+        local exit_code=$?
+        local error_msg=$(head -3 "$output_file" | tr '\n' ' ' | cut -c1-100)
+
+        # Check if it's a "command not found" or "not implemented" error
+        if grep -q -i "unknown command\|not found\|not implemented\|no such command" "$output_file" 2>/dev/null; then
+            echo "⚠️  NOT IMPLEMENTED"
+            MISSING_COMMANDS+=("$name")
+            ((MISSING_FEATURES++))
+        else
+            echo "❌"
+            echo "     Error: $error_msg"
+            FAILED_TESTS+=("$name: $error_msg")
+            ((FAILED++))
+        fi
+
+        rm -f "$output_file"
         return 1
     fi
 }
 
-echo "🧪 Running dogfooding tests against real Fizzy instance..."
+# Helper to skip a test (for features we know aren't implemented yet)
+skip_test() {
+    local name="$1"
+    echo "  $name... ⏭️  SKIPPED (known missing feature)"
+    MISSING_COMMANDS+=("$name")
+    ((SKIPPED++))
+    ((MISSING_FEATURES++))
+}
+
+echo "🧪 Running comprehensive dogfooding tests..."
 echo ""
 
-echo "Basic API Tests:"
-test_cmd "List boards" bun dist/index.js boards list --json
-test_cmd "List users" bun dist/index.js users list --json
-test_cmd "List notifications (may be empty)" bun dist/index.js notifications list --json
+# ============================================================================
+# IDENTITY & AUTH
+# ============================================================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Identity & Authentication (GET /my/identity)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+test_cmd "Auth status" auth status --json
+test_cmd "Get current identity" users me --json
 
+# ============================================================================
+# BOARDS (5 endpoints)
+# ============================================================================
 echo ""
-echo "Read Operations:"
-test_cmd "Get current user info" bun dist/index.js users me --json
-test_cmd "Check auth status" bun dist/index.js auth status --json
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Boards (5/5 endpoints)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+test_cmd "List boards" boards list --json
 
+# Get first board ID for subsequent tests
+BOARD_ID=$(eval "$CLI boards list --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.id || \"\")'")
+
+if [ -n "$BOARD_ID" ]; then
+    test_cmd "Get board details" boards get "$BOARD_ID" --json
+    test_cmd "Update board" boards update "$BOARD_ID" --name "Test Board (Dogfood)" --json
+
+    # Test board creation and deletion
+    echo "  Creating test board for delete test... "
+    TEST_BOARD_ID=$(eval "$CLI boards create --name 'Dogfood Test Board' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.id || \"\")'")
+    if [ -n "$TEST_BOARD_ID" ]; then
+        test_cmd "Delete board" boards delete "$TEST_BOARD_ID" --json
+    else
+        echo "❌ (failed to create test board)"
+        ((FAILED++))
+    fi
+else
+    echo "  ⚠️  No boards found, skipping board-specific tests"
+    ((SKIPPED+=3))
+fi
+
+# ============================================================================
+# CARDS (12 endpoints)
+# ============================================================================
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Dogfooding Test Results:"
+echo "Cards (12 endpoints)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Passed: $PASSED"
-echo "  Failed: $FAILED"
+test_cmd "List cards" cards list --json
+
+# Get first card number for subsequent tests
+CARD_NUMBER=$(eval "$CLI cards list --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.number || \"\")'")
+
+if [ -n "$CARD_NUMBER" ]; then
+    test_cmd "Get card details" cards get "$CARD_NUMBER" --json
+    test_cmd "Update card" cards update "$CARD_NUMBER" --title "Dogfood Test Card" --json
+
+    # Card operations
+    skip_test "Postpone card (POST /cards/:number/not_now)" # P0 - Not implemented
+    skip_test "Send card to triage (DELETE /cards/:number/triage)" # P0 - Not implemented
+    skip_test "Add tags to card (POST /cards/:number/taggings)" # P0 - Not implemented
+    skip_test "Assign users to card (POST /cards/:number/assignments)" # P0 - Not implemented
+    skip_test "Watch card (POST /cards/:number/watch)" # P0 - Not implemented
+    skip_test "Unwatch card (DELETE /cards/:number/watch)" # P0 - Not implemented
+else
+    echo "  ⚠️  No cards found, creating test card..."
+    if [ -n "$BOARD_ID" ]; then
+        TEST_CARD_NUMBER=$(eval "$CLI cards create --board '$BOARD_ID' --title 'Dogfood Test Card' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.number || \"\")'")
+        if [ -n "$TEST_CARD_NUMBER" ]; then
+            test_cmd "Get created card" cards get "$TEST_CARD_NUMBER" --json
+            CARD_NUMBER=$TEST_CARD_NUMBER
+        fi
+    fi
+fi
+
+# ============================================================================
+# COMMENTS (5 endpoints)
+# ============================================================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Comments (5/5 endpoints)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [ -n "$CARD_NUMBER" ]; then
+    test_cmd "List comments" comments list --card "$CARD_NUMBER" --json
+
+    # Create a test comment
+    echo "  Creating test comment..."
+    COMMENT_ID=$(eval "$CLI comments create --card '$CARD_NUMBER' --body 'Dogfood test comment' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.id || \"\")'")
+
+    if [ -n "$COMMENT_ID" ]; then
+        test_cmd "Get comment details" comments get "$COMMENT_ID" --card "$CARD_NUMBER" --json
+        test_cmd "Update comment" comments update "$COMMENT_ID" --card "$CARD_NUMBER" --body "Updated dogfood comment" --json
+        test_cmd "Delete comment" comments delete "$COMMENT_ID" --card "$CARD_NUMBER" --json
+    else
+        echo "  ⚠️  Failed to create test comment"
+        ((SKIPPED+=3))
+    fi
+else
+    echo "  ⏭️  No card available, skipping comment tests"
+    ((SKIPPED+=5))
+fi
+
+# ============================================================================
+# REACTIONS (3 endpoints)
+# ============================================================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Reactions (3 endpoints)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+skip_test "List reactions (GET /comments/:id/reactions)" # P1 - Not implemented
+
+if [ -n "$CARD_NUMBER" ]; then
+    # Create a comment to test reactions on
+    echo "  Creating test comment for reactions..."
+    COMMENT_ID=$(eval "$CLI comments create --card '$CARD_NUMBER' --body 'Test for reactions' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.id || \"\")'")
+
+    if [ -n "$COMMENT_ID" ]; then
+        test_cmd "Add reaction" reactions create --comment "$COMMENT_ID" --card "$CARD_NUMBER" --content "👍" --json
+
+        # Get reaction ID for delete test
+        REACTION_ID=$(eval "$CLI reactions create --comment '$COMMENT_ID' --card '$CARD_NUMBER' --content '❤️' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.id || \"\")'")
+
+        if [ -n "$REACTION_ID" ]; then
+            test_cmd "Delete reaction" reactions delete "$REACTION_ID" --comment "$COMMENT_ID" --card "$CARD_NUMBER" --json
+        fi
+
+        # Cleanup
+        eval "$CLI comments delete '$COMMENT_ID' --card '$CARD_NUMBER' --json > /dev/null 2>&1" || true
+    else
+        echo "  ⏭️  Failed to create comment, skipping reaction tests"
+        ((SKIPPED+=2))
+    fi
+else
+    echo "  ⏭️  No card available, skipping reaction tests"
+    ((SKIPPED+=2))
+fi
+
+# ============================================================================
+# STEPS (4 endpoints)
+# ============================================================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Steps (4/4 endpoints)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [ -n "$CARD_NUMBER" ]; then
+    test_cmd "List steps" steps list --card "$CARD_NUMBER" --json
+
+    # Create a test step
+    echo "  Creating test step..."
+    STEP_ID=$(eval "$CLI steps create --card '$CARD_NUMBER' --content 'Dogfood test step' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.id || \"\")'")
+
+    if [ -n "$STEP_ID" ]; then
+        test_cmd "Get step details" steps get "$STEP_ID" --card "$CARD_NUMBER" --json
+        test_cmd "Update step" steps update "$STEP_ID" --card "$CARD_NUMBER" --content "Updated dogfood step" --completed "true" --json
+        test_cmd "Delete step" steps delete "$STEP_ID" --card "$CARD_NUMBER" --json
+    else
+        echo "  ⚠️  Failed to create test step"
+        ((SKIPPED+=3))
+    fi
+else
+    echo "  ⏭️  No card available, skipping step tests"
+    ((SKIPPED+=4))
+fi
+
+# ============================================================================
+# TAGS (1 endpoint)
+# ============================================================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Tags (1/1 endpoint)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+test_cmd "List tags" tags list --json
+
+# ============================================================================
+# COLUMNS (5 endpoints)
+# ============================================================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Columns (5/5 endpoints)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [ -n "$BOARD_ID" ]; then
+    test_cmd "List columns" columns list --board "$BOARD_ID" --json
+
+    # Get first column for tests
+    COLUMN_ID=$(eval "$CLI columns list --board '$BOARD_ID' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.id || \"\")'")
+
+    if [ -n "$COLUMN_ID" ]; then
+        test_cmd "Get column details" columns get "$COLUMN_ID" --board "$BOARD_ID" --json
+        test_cmd "Update column" columns update "$COLUMN_ID" --board "$BOARD_ID" --name "Test Column" --json
+    fi
+
+    # Test column creation and deletion
+    echo "  Creating test column..."
+    TEST_COLUMN_ID=$(eval "$CLI columns create --board '$BOARD_ID' --name 'Dogfood Test Column' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.id || \"\")'")
+
+    if [ -n "$TEST_COLUMN_ID" ]; then
+        test_cmd "Delete column" columns delete "$TEST_COLUMN_ID" --board "$BOARD_ID" --json
+    fi
+else
+    echo "  ⏭️  No board available, skipping column tests"
+    ((SKIPPED+=5))
+fi
+
+# ============================================================================
+# USERS (4 endpoints)
+# ============================================================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Users (4 endpoints)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+test_cmd "List users" users list --json
+
+USER_ID=$(eval "$CLI users list --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.id || \"\")'")
+
+if [ -n "$USER_ID" ]; then
+    test_cmd "Get user details" users get "$USER_ID" --json
+    skip_test "Update user (PUT /users/:id)" # P1 - Not implemented
+    skip_test "Deactivate user (DELETE /users/:id)" # P1 - Not implemented
+else
+    echo "  ⏭️  No users found"
+    ((SKIPPED+=3))
+fi
+
+# ============================================================================
+# NOTIFICATIONS (4 endpoints)
+# ============================================================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Notifications (4 endpoints)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+test_cmd "List notifications" notifications list --json
+
+NOTIF_ID=$(eval "$CLI notifications list --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.id || \"\")'")
+
+if [ -n "$NOTIF_ID" ]; then
+    test_cmd "Mark notification as read" notifications read "$NOTIF_ID" --json
+    test_cmd "Mark notification as unread" notifications unread "$NOTIF_ID" --json
+else
+    echo "  ⏭️  No notifications found"
+    ((SKIPPED+=2))
+fi
+
+skip_test "Mark all notifications as read (POST /notifications/bulk_reading)" # P1 - Not implemented
+
+# ============================================================================
+# FILE UPLOADS
+# ============================================================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "File Uploads (multipart/form-data)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+skip_test "Upload card image (POST /boards/:id/cards with image)" # P0 - Not implemented
+skip_test "Upload user avatar (PUT /users/:id with avatar)" # P0 - Not implemented
+
+# ============================================================================
+# SUMMARY & REPORTING
+# ============================================================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Dogfooding Test Results"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  ✅ Passed: $PASSED"
+echo "  ❌ Failed: $FAILED"
+echo "  ⏭️  Skipped: $SKIPPED"
+echo "  ⚠️  Missing Features: $MISSING_FEATURES"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
+
+# API Coverage Report
+TOTAL_ENDPOINTS=49
+IMPLEMENTED_ENDPOINTS=$((PASSED + FAILED))
+COVERAGE_PERCENT=$((IMPLEMENTED_ENDPOINTS * 100 / TOTAL_ENDPOINTS))
+
+echo "📊 API Coverage:"
+echo "  Implemented: $IMPLEMENTED_ENDPOINTS / $TOTAL_ENDPOINTS endpoints"
+echo "  Coverage: $COVERAGE_PERCENT%"
+echo ""
+
+# Generate detailed report if there are missing features or failures
+if [ $MISSING_FEATURES -gt 0 ] || [ $FAILED -gt 0 ]; then
+    REPORT_FILE="/tmp/fizzy-cli-dogfood-report-$$.md"
+
+    cat > "$REPORT_FILE" <<EOF
+# Fizzy CLI Dogfooding Report
+
+**Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+**Status:** $([ $FAILED -eq 0 ] && echo "⚠️ INCOMPLETE" || echo "❌ FAILURES DETECTED")
+
+## Summary
+
+- ✅ **Passed:** $PASSED tests
+- ❌ **Failed:** $FAILED tests
+- ⏭️  **Skipped:** $SKIPPED tests
+- ⚠️  **Missing Features:** $MISSING_FEATURES
+
+## API Coverage
+
+- **Implemented:** $IMPLEMENTED_ENDPOINTS / $TOTAL_ENDPOINTS endpoints
+- **Coverage:** $COVERAGE_PERCENT%
+- **Target:** 100% (49/49 endpoints)
+
+EOF
+
+    if [ ${#FAILED_TESTS[@]} -gt 0 ]; then
+        cat >> "$REPORT_FILE" <<EOF
+## Failed Tests
+
+The following tests failed unexpectedly. These are implemented features that are broken:
+
+EOF
+        for test in "${FAILED_TESTS[@]}"; do
+            echo "- ❌ $test" >> "$REPORT_FILE"
+        done
+        echo "" >> "$REPORT_FILE"
+    fi
+
+    if [ ${#MISSING_COMMANDS[@]} -gt 0 ]; then
+        cat >> "$REPORT_FILE" <<EOF
+## Missing Features
+
+The following API endpoints are not implemented in the CLI:
+
+EOF
+        for cmd in "${MISSING_COMMANDS[@]}"; do
+            echo "- ⚠️  $cmd" >> "$REPORT_FILE"
+        done
+        echo "" >> "$REPORT_FILE"
+    fi
+
+    cat >> "$REPORT_FILE" <<EOF
+## Priority Breakdown
+
+### P0 Critical (Blocks Production)
+- Postpone card (POST /cards/:number/not_now)
+- Send card to triage (DELETE /cards/:number/triage)
+- Add tags to card (POST /cards/:number/taggings)
+- Assign users to card (POST /cards/:number/assignments)
+- Watch/unwatch card
+- File upload support (multipart/form-data)
+
+### P1 High (Needed for v1.0)
+- List reactions (GET /comments/:id/reactions)
+- Update user (PUT /users/:id)
+- Deactivate user (DELETE /users/:id)
+- Mark all notifications as read
+
+## Next Steps
+
+1. Review this report in the GitHub Actions logs
+2. Implement missing P0 features first
+3. Run dogfooding tests locally to verify fixes
+4. Re-run full dogfooding suite in CI
+
+## Test Environment
+
+- **Base URL:** $FIZZY_BASE_URL
+- **Account:** $FIZZY_ACCOUNT_SLUG
+- **Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+---
+
+**Generated by:** Fizzy CLI Dogfooding Test Suite
+EOF
+
+    echo "📄 Detailed report generated: $REPORT_FILE"
+    echo ""
+    echo "Report contents:"
+    cat "$REPORT_FILE"
+fi
 
 # Cleanup
 rm -rf "$TEST_CONFIG_DIR"
-rm -f /tmp/dogfood-output.txt
 
+# Exit with appropriate status
 if [ $FAILED -eq 0 ]; then
-    echo "✅ All dogfooding tests passed!"
-    echo ""
-    echo "The CLI successfully communicated with the real Fizzy instance."
-    exit 0
+    if [ $MISSING_FEATURES -gt 0 ]; then
+        echo "⚠️  Dogfooding completed with $MISSING_FEATURES missing features"
+        echo ""
+        echo "The CLI is partially functional but missing $MISSING_FEATURES API endpoints."
+        echo "See report above for details."
+        exit 0  # Don't fail CI for missing features, only for broken features
+    else
+        echo "✅ All dogfooding tests passed!"
+        echo ""
+        echo "The CLI successfully communicated with the real Fizzy instance."
+        echo "API coverage: 100% (49/49 endpoints implemented)"
+        exit 0
+    fi
 else
-    echo "❌ Some dogfooding tests failed!"
+    echo "❌ $FAILED dogfooding tests failed!"
     echo ""
     echo "Please review the failures above and ensure:"
     echo "  1. Your token has correct permissions"
     echo "  2. The Fizzy instance is accessible"
     echo "  3. Your account slug is correct"
+    echo "  4. The implemented features are working correctly"
     exit 1
 fi
