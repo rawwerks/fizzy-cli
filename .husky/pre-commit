@@ -26,5 +26,8 @@ if [ -n "$BAK_FILES" ]; then
     exit 1
 fi
 
+# Run type check
+bun run typecheck
+
 # Run tests
 bun test
