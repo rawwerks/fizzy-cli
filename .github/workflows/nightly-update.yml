@@ -137,6 +137,9 @@ jobs:
 
           ---
           🤖 Generated with [Claude Code](https://claude.com/claude-code)" \
-            --label "dependencies,automated" \
             --base master \
-            --head "$BRANCH"
+            --head "$BRANCH" || true
+
+          # Add labels if they exist (don't fail if they don't)
+          gh pr edit "$BRANCH" --add-label "dependencies" || true
+          gh pr edit "$BRANCH" --add-label "automated" || true
