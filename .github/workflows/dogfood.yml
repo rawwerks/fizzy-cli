@@ -13,6 +13,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+      id-token: write
 
     steps:
       - name: Checkout
@@ -289,6 +290,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: |
             The dogfooding tests failed. Here is the output:
 
@@ -305,9 +307,7 @@ jobs:
             Do NOT create new features - only fix broken tests.
             Do NOT modify the workflow files.
             Focus on fixing schema mismatches, API response handling, and command logic.
-          allowed_tools: "Edit,Read,Glob,Grep,Bash,Write"
-          direct_prompt: true
-          timeout_minutes: 30
+          claude_args: "--allowedTools Edit,Read,Glob,Grep,Bash,Write --max-turns 20"
         env:
           FIZZY_TOKEN: ${{ secrets.FIZZY_TOKEN }}
           FIZZY_BASE_URL: ${{ secrets.FIZZY_BASE_URL }}
