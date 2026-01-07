@@ -91,8 +91,8 @@ MISSING_FEATURES=0
 declare -a MISSING_COMMANDS=()
 declare -a FAILED_TESTS=()
 
-# CLI wrapper
-CLI="HOME=$TEST_CONFIG_DIR FIZZY_BASE_URL=$FIZZY_BASE_URL bun dist/index.js"
+# CLI wrapper - use env command to properly set environment variables
+CLI="env HOME=$TEST_CONFIG_DIR FIZZY_BASE_URL=$FIZZY_BASE_URL bun dist/index.js"
 
 # Helper to run a test
 test_cmd() {
