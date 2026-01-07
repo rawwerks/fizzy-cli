@@ -307,7 +307,8 @@ jobs:
             Do NOT create new features - only fix broken tests.
             Do NOT modify the workflow files.
             Focus on fixing schema mismatches, API response handling, and command logic.
-          claude_args: "--allowedTools Edit,Read,Glob,Grep,Bash,Write --max-turns 20"
+          claude_args: "--allowedTools Edit,Read,Glob,Grep,Bash,Write --max-turns 50"
+          show_full_output: true
         env:
           FIZZY_TOKEN: ${{ secrets.FIZZY_TOKEN }}
           FIZZY_BASE_URL: ${{ secrets.FIZZY_BASE_URL }}
