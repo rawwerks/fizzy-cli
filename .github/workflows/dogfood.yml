@@ -257,7 +257,7 @@ jobs:
             gh issue create \
               --title "🍕 Dogfooding: $FAILED failures, $MISSING missing features (${COVERAGE}% coverage)" \
               --body "$ISSUE_BODY" \
-              --label "dogfooding,automated,bug,P0"
+              --label "dogfooding,automated,bug"
           else
             # Update existing issue with new run
             gh issue comment "$EXISTING_ISSUE" --body "## 🔄 New Test Run: $(date -u '+%Y-%m-%d at %H:%M UTC')
