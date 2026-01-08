@@ -318,3 +318,212 @@ describe('filterUsers', () => {
     expect(filtered[0].name).toBe('Bob Member');
   });
 });
+
+describe('filterComments', () => {
+  const mockComments: Comment[] = [
+    {
+      id: 'comment1',
+      body: {
+        plain_text: 'This is a great feature!',
+        html: '<p>This is a great feature!</p>',
+      },
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-02T00:00:00Z',
+      creator: {
+        id: 'user1',
+        name: 'Alice Admin',
+        email_address: 'alice@example.com',
+        role: 'admin',
+        active: true,
+        created_at: '2023-01-01T00:00:00Z',
+        url: 'https://example.com/users/1',
+      },
+      reactions_url: 'https://example.com/comments/1/reactions',
+      url: 'https://example.com/comments/1',
+    },
+    {
+      id: 'comment2',
+      body: {
+        plain_text: 'I found a bug in this code',
+        html: '<p>I found a bug in this code</p>',
+      },
+      created_at: '2024-01-10T00:00:00Z',
+      updated_at: '2024-01-15T00:00:00Z',
+      creator: {
+        id: 'user2',
+        name: 'Bob Member',
+        email_address: 'bob@example.com',
+        role: 'member',
+        active: true,
+        created_at: '2023-02-01T00:00:00Z',
+        url: 'https://example.com/users/2',
+      },
+      reactions_url: 'https://example.com/comments/2/reactions',
+      url: 'https://example.com/comments/2',
+    },
+  ];
+
+  it('should return all comments when no filters are applied', () => {
+    const filtered = filterComments(mockComments, {});
+    expect(filtered).toHaveLength(2);
+  });
+
+  it('should filter by user ID', () => {
+    const filtered = filterComments(mockComments, { user: 'user1' });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].creator.id).toBe('user1');
+  });
+
+  it('should search in comment body', () => {
+    const filtered = filterComments(mockComments, { search: 'bug' });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].body.plain_text).toContain('bug');
+  });
+
+  it('should filter by created after date', () => {
+    const filtered = filterComments(mockComments, {
+      createdAfter: new Date('2024-01-05'),
+    });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].id).toBe('comment2');
+  });
+
+  it('should filter by created before date', () => {
+    const filtered = filterComments(mockComments, {
+      createdBefore: new Date('2024-01-05'),
+    });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].id).toBe('comment1');
+  });
+
+  it('should sort by created_at ascending', () => {
+    const filtered = filterComments(mockComments, { sort: 'created_at', order: 'asc' });
+    expect(filtered[0].id).toBe('comment1');
+    expect(filtered[1].id).toBe('comment2');
+  });
+
+  it('should sort by created_at descending', () => {
+    const filtered = filterComments(mockComments, { sort: 'created_at', order: 'desc' });
+    expect(filtered[0].id).toBe('comment2');
+    expect(filtered[1].id).toBe('comment1');
+  });
+
+  it('should sort by updated_at', () => {
+    const filtered = filterComments(mockComments, { sort: 'updated_at', order: 'desc' });
+    expect(filtered[0].id).toBe('comment2');
+  });
+
+  it('should combine multiple filters', () => {
+    const filtered = filterComments(mockComments, {
+      search: 'feature',
+      user: 'user1',
+    });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].id).toBe('comment1');
+  });
+});
+
+describe('filterNotifications', () => {
+  const mockCreator = {
+    id: 'user1',
+    name: 'Alice Admin',
+    email_address: 'alice@example.com',
+    role: 'admin' as const,
+    active: true,
+    created_at: '2023-01-01T00:00:00Z',
+    url: 'https://example.com/users/1',
+  };
+
+  const mockCard = {
+    id: 'card1',
+    title: 'Test Card',
+    status: 'open',
+    url: 'https://example.com/cards/1',
+  };
+
+  const mockNotifications: Notification[] = [
+    {
+      id: 'notif1',
+      title: 'New comment on your card',
+      body: 'Alice commented on your card',
+      read: false,
+      read_at: null,
+      created_at: '2024-01-01T00:00:00Z',
+      creator: mockCreator,
+      card: mockCard,
+      url: 'https://example.com/notifications/1',
+    },
+    {
+      id: 'notif2',
+      title: 'Card assigned to you',
+      body: 'You have been assigned to a new card',
+      read: true,
+      read_at: '2024-01-11T00:00:00Z',
+      created_at: '2024-01-10T00:00:00Z',
+      creator: mockCreator,
+      card: mockCard,
+      url: 'https://example.com/notifications/2',
+    },
+    {
+      id: 'notif3',
+      title: 'Board activity',
+      body: 'New activity on Engineering board',
+      read: false,
+      read_at: null,
+      created_at: '2024-01-15T00:00:00Z',
+      creator: mockCreator,
+      card: mockCard,
+      url: 'https://example.com/notifications/3',
+    },
+  ];
+
+  it('should return all notifications when no filters are applied', () => {
+    const filtered = filterNotifications(mockNotifications, {});
+    expect(filtered).toHaveLength(3);
+  });
+
+  it('should filter by read status', () => {
+    const filtered = filterNotifications(mockNotifications, { read: true });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].read).toBe(true);
+  });
+
+  it('should filter by unread status', () => {
+    const filtered = filterNotifications(mockNotifications, { unread: true });
+    expect(filtered).toHaveLength(2);
+    expect(filtered.every((n) => n.read === false)).toBe(true);
+  });
+
+  it('should search in title', () => {
+    const filtered = filterNotifications(mockNotifications, { search: 'comment' });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].title).toContain('comment');
+  });
+
+  it('should search in body', () => {
+    const filtered = filterNotifications(mockNotifications, { search: 'Engineering' });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].body).toContain('Engineering');
+  });
+
+  it('should sort by created_at ascending', () => {
+    const filtered = filterNotifications(mockNotifications, { sort: 'created_at', order: 'asc' });
+    expect(filtered[0].id).toBe('notif1');
+    expect(filtered[2].id).toBe('notif3');
+  });
+
+  it('should sort by created_at descending', () => {
+    const filtered = filterNotifications(mockNotifications, { sort: 'created_at', order: 'desc' });
+    expect(filtered[0].id).toBe('notif3');
+    expect(filtered[2].id).toBe('notif1');
+  });
+
+  it('should combine multiple filters', () => {
+    const filtered = filterNotifications(mockNotifications, {
+      unread: true,
+      search: 'card',
+    });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].id).toBe('notif1');
+  });
+});
