@@ -490,5 +490,5 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for det
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/fizzy-cli/issues)
+- **Issues**: [GitHub Issues](https://github.com/rawwerks/fizzy-cli/issues)
 - **Fizzy API Documentation**: [fizzy-api/docs/API.md](./fizzy-api/docs/API.md)
