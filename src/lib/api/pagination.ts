@@ -52,8 +52,8 @@ export function parseLinkHeader(linkHeader: string | null | undefined): Paginati
   const parts = linkHeader.split(',').map(part => part.trim());
 
   for (const part of parts) {
-    // Match pattern: <URL>; rel="relation"
-    const match = part.match(/<([^>]+)>;\s*rel="([^"]+)"/);
+    // Match pattern: <URL>; rel="relation" (with optional whitespace)
+    const match = part.match(/<([^>]+)>\s*;\s*rel="([^"]+)"/);
 
     if (match) {
       const [, url, rel] = match;
