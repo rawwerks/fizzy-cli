@@ -69,8 +69,6 @@ function createListCommand(): Command {
       const spinner = format === 'json' ? null : startSpinner('Fetching boards...');
 
       try {
-        // Validate board name
-        validateBoardName(options.name);
         // Authenticate and get account info
         const auth = await requireAuth({ accountSlug: options.account });
 
