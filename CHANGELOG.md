@@ -278,8 +278,8 @@ fizzy --version
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/fizzy-cli/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/fizzy-cli/discussions)
+- **Issues**: [GitHub Issues](https://github.com/rawwerks/fizzy-cli/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/rawwerks/fizzy-cli/discussions)
 - **Documentation**: [docs/](./docs/)
 
 ---
@@ -292,4 +292,4 @@ Thank you to all contributors who helped build fizzy-cli!
 
 ---
 
-**Note**: This changelog is maintained manually. For a complete list of commits, see the [commit history](https://github.com/yourusername/fizzy-cli/commits/main).
+**Note**: This changelog is maintained manually. For a complete list of commits, see the [commit history](https://github.com/rawwerks/fizzy-cli/commits/main).

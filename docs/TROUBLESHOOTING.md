@@ -455,10 +455,10 @@ npm install -g npm@latest
 npm cache clean --force
 
 # Retry installation
-npm install -g fizzy-cli
+npm install -g @raw-works/fizzy-cli
 
 # If still fails, install from source
-git clone https://github.com/yourusername/fizzy-cli.git
+git clone https://github.com/rawwerks/fizzy-cli.git
 cd fizzy-cli
 bun install
 bun run build
@@ -499,7 +499,7 @@ fizzy --version
 curl -fsSL https://bun.sh/install | bash
 
 # Or use npm version instead
-npm install -g fizzy-cli
+npm install -g @raw-works/fizzy-cli
 ```
 
 ### Permission errors during install
@@ -510,7 +510,7 @@ npm install -g fizzy-cli
 
 ```bash
 # Use sudo (not recommended for global install)
-sudo npm install -g fizzy-cli
+sudo npm install -g @raw-works/fizzy-cli
 
 # Better: Use nvm to manage Node.js
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
@@ -686,7 +686,7 @@ fizzy boards get abc123  # Does this work?
 ### Search existing issues
 
 Check GitHub issues for similar problems:
-https://github.com/yourusername/fizzy-cli/issues
+https://github.com/rawwerks/fizzy-cli/issues
 
 ### Report a bug
 
@@ -749,6 +749,6 @@ When something isn't working, try these steps in order:
 4. ✅ Check command syntax: `fizzy <command> --help`
 5. ✅ Try with `--json` flag for better error messages
 6. ✅ Check file permissions: `ls -la ~/.fizzy-cli/tokens.json`
-7. ✅ Update to latest version: `npm update -g fizzy-cli`
+7. ✅ Update to latest version: `npm update -g @raw-works/fizzy-cli`
 8. ✅ Clear and re-authenticate all accounts
 9. ✅ Report issue with full details if still failing

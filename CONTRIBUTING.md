@@ -44,7 +44,7 @@ cd fizzy-cli
 3. Add upstream remote:
 
 ```bash
-git remote add upstream https://github.com/ORIGINAL_OWNER/fizzy-cli.git
+git remote add upstream https://github.com/rawwerks/fizzy-cli.git
 ```
 
 ## Development Setup

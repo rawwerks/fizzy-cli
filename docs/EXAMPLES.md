@@ -21,7 +21,7 @@ First-time setup with fizzy-cli:
 
 ```bash
 # Install fizzy-cli
-npm install -g fizzy-cli
+npm install -g @raw-works/fizzy-cli
 
 # Authenticate with Personal Access Token
 fizzy auth login
@@ -596,7 +596,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install fizzy-cli
-        run: npm install -g fizzy-cli
+        run: npm install -g @raw-works/fizzy-cli
 
       - name: Create release card
         env:
