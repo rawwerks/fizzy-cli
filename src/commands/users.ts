@@ -180,12 +180,21 @@ function createMeCommand(): Command {
         // Get authentication
         const auth = await requireAuth({ accountSlug: options.account });
 
-        // For the 'me' endpoint, we can use the user info from the stored account
-        // or fetch from the API. Since the account already has user info, we'll use that
-        // but also show how to fetch from API if needed.
+        // Create API client
+        const client = createClient({
+          auth: { type: 'bearer', token: auth.account.access_token },
+          accountSlug: auth.account.account_slug,
+        });
 
-        // Using the stored user info from authentication
-        const user = auth.account.user;
+        // Fetch current user from API (use the user ID from stored auth)
+        const rawUser = await client.get(`/users/${auth.account.user.id}`);
+
+        // Validate API response
+        const user = parseApiResponse(
+          UserSchema,
+          rawUser,
+          'user profile'
+        );
 
         // Determine output format
         const format = detectFormat(options);
@@ -199,6 +208,7 @@ function createMeCommand(): Command {
             Name: user.name,
             Email: user.email_address,
             Role: user.role,
+            Active: user.active ? 'Yes' : 'No',
           };
 
           console.log(formatOutput(tableData, format));
