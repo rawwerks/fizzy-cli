@@ -186,15 +186,34 @@ function createMeCommand(): Command {
           accountSlug: auth.account.account_slug,
         });
 
-        // Fetch current user from API (use the user ID from stored auth)
-        const rawUser = await client.get(`/users/${auth.account.user.id}`);
+        // Fetch identity to get the current user's real ID
+        // This is more reliable than using the stored user ID which might be stale
+        const rawIdentity = await client.get('/my/identity');
 
-        // Validate API response
-        const user = parseApiResponse(
-          UserSchema,
-          rawUser,
-          'user profile'
+        // Parse identity response to extract user info for the current account
+        const IdentityResponseSchema = z.object({
+          accounts: z.array(z.object({
+            slug: z.string(),
+            user: UserSchema,
+          })),
+        });
+
+        const identity = parseApiResponse(
+          IdentityResponseSchema,
+          rawIdentity,
+          'identity'
         );
+
+        // Find the account that matches our current account slug
+        const currentAccount = identity.accounts.find(
+          acc => acc.slug === auth.account.account_slug
+        );
+
+        if (!currentAccount) {
+          throw new Error(`Account ${auth.account.account_slug} not found in identity response`);
+        }
+
+        const user = currentAccount.user;
 
         // Determine output format
         const format = detectFormat(options);
