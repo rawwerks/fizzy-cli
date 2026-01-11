@@ -8,7 +8,7 @@
 import { Command } from 'commander';
 import { requireAuth } from '../middleware/auth.js';
 import { createClient } from '../lib/api/client.js';
-import { UserSchema, parseApiResponse } from '../schemas/api.js';
+import { UserSchema, parseApiResponse, IdentityResponseSchema } from '../schemas/api.js';
 import { formatOutput, detectFormat, printError } from '../lib/output/formatter.js';
 import {
   validateUserId,
@@ -191,13 +191,6 @@ function createMeCommand(): Command {
         const rawIdentity = await client.get('/my/identity');
 
         // Parse identity response to extract user info for the current account
-        const IdentityResponseSchema = z.object({
-          accounts: z.array(z.object({
-            slug: z.string(),
-            user: UserSchema,
-          })),
-        });
-
         const identity = parseApiResponse(
           IdentityResponseSchema,
           rawIdentity,
