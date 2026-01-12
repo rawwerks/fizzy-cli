@@ -168,6 +168,11 @@ export class FizzyClient {
     // Remove leading slash if present
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
 
+    // Special handling for /my/* endpoints which don't require account slug
+    if (cleanPath.startsWith('my/')) {
+      return `${this.baseUrl}/${cleanPath}`;
+    }
+
     return `${this.baseUrl}/${this.accountSlug}/${cleanPath}`;
   }
 
