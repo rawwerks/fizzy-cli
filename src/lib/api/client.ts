@@ -64,6 +64,10 @@ export interface ClientOptions {
    * Retry configuration for rate limiting and transient errors
    */
   retry?: RetryOptions;
+  /**
+   * Request timeout in milliseconds (default: 30000 / 30 seconds)
+   */
+  timeout?: number;
 }
 
 export interface PaginationOptions {
