@@ -130,6 +130,7 @@ export class FizzyClient {
   private readonly cache: Map<string, CacheEntry>;
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
   private readonly retryConfig: Required<RetryOptions>;
+  private readonly timeout: number;
 
   constructor(options: ClientOptions) {
     this.auth = options.auth;
@@ -137,6 +138,7 @@ export class FizzyClient {
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
     this.userAgent = options.userAgent ?? 'fizzy-cli';
     this.cache = new Map();
+    this.timeout = options.timeout ?? 30000; // Default 30 seconds
 
     // Merge retry options with defaults and environment variables
     const envMaxRetries = process.env.FIZZY_MAX_RETRIES
