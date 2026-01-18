@@ -56,7 +56,8 @@ echo "   ✅ Build complete"
 echo ""
 
 # Set up temporary config directory with credentials
-TEST_CONFIG_DIR="/tmp/fizzy-cli-dogfood-$$"
+# Use timestamp instead of $$ to avoid PID expansion issues in subshells/eval contexts
+TEST_CONFIG_DIR="/tmp/fizzy-cli-dogfood-$(date +%s%N)"
 mkdir -p "$TEST_CONFIG_DIR/.fizzy-cli"
 
 # Create tokens.json from environment variables
