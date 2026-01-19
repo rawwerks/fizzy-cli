@@ -96,7 +96,7 @@ declare -a FAILED_TESTS=()
 CLI="env HOME=$TEST_CONFIG_DIR FIZZY_BASE_URL=$FIZZY_BASE_URL bun dist/index.js"
 
 # Helper to run a test
-test_cmd() {
+test_cmd() { || true
     local name="$1"
     shift
     echo -n "  $name... "
@@ -147,8 +147,8 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Identity & Authentication (GET /my/identity)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-test_cmd "Auth status" auth status --json
-test_cmd "Get current identity" users me --json
+test_cmd "Auth status" auth status --json || true
+test_cmd "Get current identity" users me --json || true
 
 # ============================================================================
 # BOARDS (5 endpoints)
@@ -157,20 +157,20 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Boards (5/5 endpoints)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-test_cmd "List boards" boards list --json
+test_cmd "List boards" boards list --json || true
 
 # Get first board ID for subsequent tests
 BOARD_ID=$(eval "$CLI boards list --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.id || \"\")'")
 
 if [ -n "$BOARD_ID" ]; then
-    test_cmd "Get board details" boards get "$BOARD_ID" --json
-    test_cmd "Update board" boards update "$BOARD_ID" --name "Test Board (Dogfood)" --json
+    test_cmd "Get board details" boards get "$BOARD_ID" --json || true
+    test_cmd "Update board" boards update "$BOARD_ID" --name "Test Board (Dogfood)" --json || true
 
     # Test board creation and deletion
     echo "  Creating test board for delete test... "
     TEST_BOARD_ID=$(eval "$CLI boards create --name 'Dogfood Test Board' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.id || \"\")'")
     if [ -n "$TEST_BOARD_ID" ]; then
-        test_cmd "Delete board" boards delete "$TEST_BOARD_ID" --json
+        test_cmd "Delete board" boards delete "$TEST_BOARD_ID" --json || true
     else
         echo "❌ (failed to create test board)"
         ((FAILED++))
@@ -187,30 +187,30 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Cards (18/18 endpoints)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-test_cmd "List cards" cards list --json
+test_cmd "List cards" cards list --json || true
 
 # Get first card number for subsequent tests
 CARD_NUMBER=$(eval "$CLI cards list --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.number || \"\")'")
 
 if [ -n "$CARD_NUMBER" ]; then
-    test_cmd "Get card details" cards get "$CARD_NUMBER" --json
-    test_cmd "Update card" cards update "$CARD_NUMBER" --title "Dogfood Test Card" --json
+    test_cmd "Get card details" cards get "$CARD_NUMBER" --json || true
+    test_cmd "Update card" cards update "$CARD_NUMBER" --title "Dogfood Test Card" --json || true
 
     # Card operations
-    test_cmd "Postpone card" cards postpone "$CARD_NUMBER" --json
-    test_cmd "Send card to triage" cards triage "$CARD_NUMBER" --json
-    test_cmd "Watch card" cards watch "$CARD_NUMBER" --json
-    test_cmd "Unwatch card" cards unwatch "$CARD_NUMBER" --json
+    test_cmd "Postpone card" cards postpone "$CARD_NUMBER" --json || true
+    test_cmd "Send card to triage" cards triage "$CARD_NUMBER" --json || true
+    test_cmd "Watch card" cards watch "$CARD_NUMBER" --json || true
+    test_cmd "Unwatch card" cards unwatch "$CARD_NUMBER" --json || true
 
     # Tag operations (need tags to exist first)
-    test_cmd "Add tag to card" cards tag "$CARD_NUMBER" --add "test-tag" --json
-    test_cmd "Remove tag from card" cards tag "$CARD_NUMBER" --remove "test-tag" --json
+    test_cmd "Add tag to card" cards tag "$CARD_NUMBER" --add "test-tag" --json || true
+    test_cmd "Remove tag from card" cards tag "$CARD_NUMBER" --remove "test-tag" --json || true
 
     # Assignment operations (need user IDs)
     USER_ID=$(eval "$CLI users list --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.id || \"\")'")
     if [ -n "$USER_ID" ]; then
-        test_cmd "Assign user to card" cards assign "$CARD_NUMBER" --add "$USER_ID" --json
-        test_cmd "Unassign user from card" cards assign "$CARD_NUMBER" --remove "$USER_ID" --json
+        test_cmd "Assign user to card" cards assign "$CARD_NUMBER" --add "$USER_ID" --json || true
+        test_cmd "Unassign user from card" cards assign "$CARD_NUMBER" --remove "$USER_ID" --json || true
     else
         echo "  ⏭️  No users found for assignment tests"
         ((SKIPPED+=2))
@@ -220,7 +220,7 @@ else
     if [ -n "$BOARD_ID" ]; then
         TEST_CARD_NUMBER=$(eval "$CLI cards create --board '$BOARD_ID' --title 'Dogfood Test Card' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.number || \"\")'")
         if [ -n "$TEST_CARD_NUMBER" ]; then
-            test_cmd "Get created card" cards get "$TEST_CARD_NUMBER" --json
+            test_cmd "Get created card" cards get "$TEST_CARD_NUMBER" --json || true
             CARD_NUMBER=$TEST_CARD_NUMBER
         fi
     fi
@@ -234,16 +234,16 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Comments (5/5 endpoints)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if [ -n "$CARD_NUMBER" ]; then
-    test_cmd "List comments" comments list --card "$CARD_NUMBER" --json
+    test_cmd "List comments" comments list --card "$CARD_NUMBER" --json || true
 
     # Create a test comment
     echo "  Creating test comment..."
     COMMENT_ID=$(eval "$CLI comments create --card '$CARD_NUMBER' --body 'Dogfood test comment' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.id || \"\")'")
 
     if [ -n "$COMMENT_ID" ]; then
-        test_cmd "Get comment details" comments get "$COMMENT_ID" --card "$CARD_NUMBER" --json
-        test_cmd "Update comment" comments update "$COMMENT_ID" --card "$CARD_NUMBER" --body "Updated dogfood comment" --json
-        test_cmd "Delete comment" comments delete "$COMMENT_ID" --card "$CARD_NUMBER" --json
+        test_cmd "Get comment details" comments get "$COMMENT_ID" --card "$CARD_NUMBER" --json || true
+        test_cmd "Update comment" comments update "$COMMENT_ID" --card "$CARD_NUMBER" --body "Updated dogfood comment" --json || true
+        test_cmd "Delete comment" comments delete "$COMMENT_ID" --card "$CARD_NUMBER" --json || true
     else
         echo "  ⚠️  Failed to create test comment"
         ((SKIPPED+=3))
@@ -267,18 +267,18 @@ if [ -n "$CARD_NUMBER" ]; then
     COMMENT_ID=$(eval "$CLI comments create --card '$CARD_NUMBER' --body 'Test for reactions' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.id || \"\")'")
 
     if [ -n "$COMMENT_ID" ]; then
-        test_cmd "Add reaction" reactions create --comment "$COMMENT_ID" --card "$CARD_NUMBER" --content "👍" --json
+        test_cmd "Add reaction" reactions create --comment "$COMMENT_ID" --card "$CARD_NUMBER" --content "👍" --json || true
 
         # Add another reaction for delete test
         eval "$CLI reactions create --comment '$COMMENT_ID' --card '$CARD_NUMBER' --content '❤️' --json > /dev/null 2>&1"
 
-        test_cmd "List reactions" reactions list --comment "$COMMENT_ID" --card "$CARD_NUMBER" --json
+        test_cmd "List reactions" reactions list --comment "$COMMENT_ID" --card "$CARD_NUMBER" --json || true
 
         # Get reaction ID from list for delete test
         REACTION_ID=$(eval "$CLI reactions list --comment '$COMMENT_ID' --card '$CARD_NUMBER' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.id || \"\")'")
 
         if [ -n "$REACTION_ID" ]; then
-            test_cmd "Delete reaction" reactions delete "$REACTION_ID" --comment "$COMMENT_ID" --card "$CARD_NUMBER" --json
+            test_cmd "Delete reaction" reactions delete "$REACTION_ID" --comment "$COMMENT_ID" --card "$CARD_NUMBER" --json || true
         fi
 
         # Cleanup
@@ -300,16 +300,16 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Steps (4/4 endpoints)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if [ -n "$CARD_NUMBER" ]; then
-    test_cmd "List steps" steps list --card "$CARD_NUMBER" --json
+    test_cmd "List steps" steps list --card "$CARD_NUMBER" --json || true
 
     # Create a test step
     echo "  Creating test step..."
     STEP_ID=$(eval "$CLI steps create --card '$CARD_NUMBER' --content 'Dogfood test step' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.id || \"\")'")
 
     if [ -n "$STEP_ID" ]; then
-        test_cmd "Get step details" steps get "$STEP_ID" --card "$CARD_NUMBER" --json
-        test_cmd "Update step" steps update "$STEP_ID" --card "$CARD_NUMBER" --content "Updated dogfood step" --completed "true" --json
-        test_cmd "Delete step" steps delete "$STEP_ID" --card "$CARD_NUMBER" --json
+        test_cmd "Get step details" steps get "$STEP_ID" --card "$CARD_NUMBER" --json || true
+        test_cmd "Update step" steps update "$STEP_ID" --card "$CARD_NUMBER" --content "Updated dogfood step" --completed "true" --json || true
+        test_cmd "Delete step" steps delete "$STEP_ID" --card "$CARD_NUMBER" --json || true
     else
         echo "  ⚠️  Failed to create test step"
         ((SKIPPED+=3))
@@ -326,7 +326,7 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Tags (1/1 endpoint)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-test_cmd "List tags" tags list --json
+test_cmd "List tags" tags list --json || true
 
 # ============================================================================
 # COLUMNS (5 endpoints)
@@ -336,14 +336,14 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Columns (5/5 endpoints)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if [ -n "$BOARD_ID" ]; then
-    test_cmd "List columns" columns list --board "$BOARD_ID" --json
+    test_cmd "List columns" columns list --board "$BOARD_ID" --json || true
 
     # Get first column for tests
     COLUMN_ID=$(eval "$CLI columns list --board '$BOARD_ID' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.id || \"\")'")
 
     if [ -n "$COLUMN_ID" ]; then
-        test_cmd "Get column details" columns get "$COLUMN_ID" --board "$BOARD_ID" --json
-        test_cmd "Update column" columns update "$COLUMN_ID" --board "$BOARD_ID" --name "Test Column" --json
+        test_cmd "Get column details" columns get "$COLUMN_ID" --board "$BOARD_ID" --json || true
+        test_cmd "Update column" columns update "$COLUMN_ID" --board "$BOARD_ID" --name "Test Column" --json || true
     fi
 
     # Test column creation and deletion
@@ -351,7 +351,7 @@ if [ -n "$BOARD_ID" ]; then
     TEST_COLUMN_ID=$(eval "$CLI columns create --board '$BOARD_ID' --name 'Dogfood Test Column' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.id || \"\")'")
 
     if [ -n "$TEST_COLUMN_ID" ]; then
-        test_cmd "Delete column" columns delete "$TEST_COLUMN_ID" --board "$BOARD_ID" --json
+        test_cmd "Delete column" columns delete "$TEST_COLUMN_ID" --board "$BOARD_ID" --json || true
     fi
 else
     echo "  ⏭️  No board available, skipping column tests"
@@ -365,19 +365,19 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Users (4 endpoints)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-test_cmd "List users" users list --json
+test_cmd "List users" users list --json || true
 
 USER_ID=$(eval "$CLI users list --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.id || \"\")'")
 
 if [ -n "$USER_ID" ]; then
-    test_cmd "Get user details" users get "$USER_ID" --json
-    test_cmd "Update user" users update "$USER_ID" --name "Test User (Dogfood)" --json
+    test_cmd "Get user details" users get "$USER_ID" --json || true
+    test_cmd "Update user" users update "$USER_ID" --name "Test User (Dogfood)" --json || true
 
     # Only test deactivate if we have a non-owner user (to avoid breaking the test account)
     NON_OWNER_USER_ID=$(eval "$CLI users list --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); const nonOwner = data.find(u => u.role !== \"owner\"); console.log(nonOwner?.id || \"\")'")
 
     if [ -n "$NON_OWNER_USER_ID" ]; then
-        test_cmd "Deactivate user" users deactivate "$NON_OWNER_USER_ID" --force --json
+        test_cmd "Deactivate user" users deactivate "$NON_OWNER_USER_ID" --force --json || true
     else
         echo "  ⏭️  Skipping deactivate test (no non-owner user available)"
         ((SKIPPED+=1))
@@ -394,19 +394,19 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Notifications (4 endpoints)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-test_cmd "List notifications" notifications list --json
+test_cmd "List notifications" notifications list --json || true
 
 NOTIF_ID=$(eval "$CLI notifications list --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.id || \"\")'")
 
 if [ -n "$NOTIF_ID" ]; then
-    test_cmd "Mark notification as read" notifications read "$NOTIF_ID" --json
-    test_cmd "Mark notification as unread" notifications unread "$NOTIF_ID" --json
+    test_cmd "Mark notification as read" notifications read "$NOTIF_ID" --json || true
+    test_cmd "Mark notification as unread" notifications unread "$NOTIF_ID" --json || true
 else
     echo "  ⏭️  No notifications found"
     ((SKIPPED+=2))
 fi
 
-test_cmd "Mark all notifications as read" notifications mark-all-read --json
+test_cmd "Mark all notifications as read" notifications mark-all-read --json || true
 
 # ============================================================================
 # FILE UPLOADS
@@ -432,7 +432,7 @@ if [ -n "$BOARD_ID" ]; then
         ((PASSED++))
 
         # Test updating card image
-        test_cmd "Upload card image (update)" cards update "$TEST_CARD_WITH_IMG" --image "$TEST_IMAGE" --json
+        test_cmd "Upload card image (update)" cards update "$TEST_CARD_WITH_IMG" --image "$TEST_IMAGE" --json || true
 
         # Cleanup
         eval "$CLI cards delete '$TEST_CARD_WITH_IMG' --json > /dev/null 2>&1" || true
@@ -447,7 +447,7 @@ else
 fi
 
 if [ -n "$USER_ID" ]; then
-    test_cmd "Upload user avatar" users update "$USER_ID" --avatar "$TEST_IMAGE" --json
+    test_cmd "Upload user avatar" users update "$USER_ID" --avatar "$TEST_IMAGE" --json || true
 else
     skip_test "Upload user avatar (PUT /users/:id with avatar)" # No user available
 fi
