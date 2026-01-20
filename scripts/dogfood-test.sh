@@ -96,7 +96,7 @@ declare -a FAILED_TESTS=()
 CLI="env HOME=$TEST_CONFIG_DIR FIZZY_BASE_URL=$FIZZY_BASE_URL bun dist/index.js"
 
 # Helper to run a test
-test_cmd() { || true
+test_cmd() {
     local name="$1"
     shift
     echo -n "  $name... "
