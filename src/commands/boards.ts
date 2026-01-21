@@ -242,17 +242,26 @@ function createGetCommand(): Command {
 function createCreateCommand(): Command {
   const command = new Command('create')
     .description('Create a new board')
-    .argument('<name>', 'Board name')
+    .argument('[name]', 'Board name (can also use --name flag)')
+    .option('--name <name>', 'Board name')
     .option('--json', 'Output in JSON format')
     .option('--account <slug>', 'Account slug to use')
     .option('--all-access <boolean>', 'Whether any user in the account can access this board (default: true)', (value) => value === 'true')
     .option('--auto-postpone-period <days>', 'Number of days of inactivity before cards are automatically postponed', (value) => parseInt(value, 10))
     .option('--public-description <text>', 'Rich text description shown on the public board page')
-    .action(async (name: string, options) => {
+    .action(async (nameArg: string | undefined, options) => {
       const format = detectFormat(options);
       const spinner = format === 'json' ? null : startSpinner('Creating board...');
 
       try {
+        // Get board name from either positional argument or --name flag
+        const name = nameArg || options.name;
+        if (!name) {
+          if (spinner) spinner.fail('Board name is required');
+          printError('Board name is required. Use either: fizzy boards create "Board Name" or fizzy boards create --name "Board Name"');
+          process.exit(1);
+        }
+
         // Authenticate and get account info
         const auth = await requireAuth({ accountSlug: options.account });
 
