@@ -23,7 +23,8 @@ import { confirmDelete } from '../lib/prompts.js';
 /**
  * List comments for a card
  */
-async function listComments(cardNumber: string, options: {
+async function listComments(options: {
+  card: string;
   json?: boolean;
   account?: string;
   search?: string;
@@ -34,7 +35,7 @@ async function listComments(cardNumber: string, options: {
   order?: 'asc' | 'desc';
 }): Promise<void> {
     // Validate card number
-    validatePositiveInteger(cardNumber, 'Card number');
+    validatePositiveInteger(options.card, 'Card number');
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -42,7 +43,7 @@ async function listComments(cardNumber: string, options: {
       accountSlug: auth.account.account_slug,
     });
 
-    const commentsData = await client.get(`cards/${cardNumber}/comments`);
+    const commentsData = await client.get(`cards/${options.card}/comments`);
     const allComments = parseApiResponse(CommentSchema.array(), commentsData, 'comments list');
 
     // Apply client-side filters
@@ -91,9 +92,9 @@ async function listComments(cardNumber: string, options: {
 /**
  * Get comment details
  */
-async function getComment(cardNumber: string, commentId: string, options: { json?: boolean; account?: string }): Promise<void> {
+async function getComment(commentId: string, options: { card: string; json?: boolean; account?: string }): Promise<void> {
     // Validate inputs
-    validatePositiveInteger(cardNumber, 'Card number');
+    validatePositiveInteger(options.card, 'Card number');
     validateCommentId(commentId);
   try {
     const auth = await requireAuth({ accountSlug: options.account });
@@ -102,7 +103,7 @@ async function getComment(cardNumber: string, commentId: string, options: { json
       accountSlug: auth.account.account_slug,
     });
 
-    const commentData = await client.get(`cards/${cardNumber}/comments/${commentId}`);
+    const commentData = await client.get(`cards/${options.card}/comments/${commentId}`);
     const comment = parseApiResponse(CommentSchema, commentData, 'comment');
     const format = detectFormat(options);
 
@@ -134,7 +135,7 @@ async function getComment(cardNumber: string, commentId: string, options: { json
 /**
  * Create a new comment
  */
-async function createComment(cardNumber: string, options: { body: string; json?: boolean; account?: string }): Promise<void> {
+async function createComment(options: { card: string; body: string; json?: boolean; account?: string }): Promise<void> {
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -142,7 +143,7 @@ async function createComment(cardNumber: string, options: { body: string; json?:
       accountSlug: auth.account.account_slug,
     });
 
-    const commentData = await client.post(`cards/${cardNumber}/comments`, {
+    const commentData = await client.post(`cards/${options.card}/comments`, {
       comment: {
         body: options.body,
       },
@@ -171,7 +172,7 @@ async function createComment(cardNumber: string, options: { body: string; json?:
 /**
  * Update a comment
  */
-async function updateComment(cardNumber: string, commentId: string, options: { body: string; json?: boolean; account?: string }): Promise<void> {
+async function updateComment(commentId: string, options: { card: string; body: string; json?: boolean; account?: string }): Promise<void> {
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -180,14 +181,14 @@ async function updateComment(cardNumber: string, commentId: string, options: { b
     });
 
     // PUT returns 204 No Content, so we need to fetch the comment after update
-    await client.put(`cards/${cardNumber}/comments/${commentId}`, {
+    await client.put(`cards/${options.card}/comments/${commentId}`, {
       comment: {
         body: options.body,
       },
     });
 
     // Fetch the updated comment
-    const commentData = await client.get(`cards/${cardNumber}/comments/${commentId}`);
+    const commentData = await client.get(`cards/${options.card}/comments/${commentId}`);
     const comment = parseApiResponse(CommentSchema, commentData, 'update comment');
     const format = detectFormat(options);
 
@@ -211,7 +212,7 @@ async function updateComment(cardNumber: string, commentId: string, options: { b
 /**
  * Delete a comment
  */
-async function deleteComment(cardNumber: string, commentId: string, options: { account?: string; force?: boolean; json?: boolean }): Promise<void> {
+async function deleteComment(commentId: string, options: { card: string; account?: string; force?: boolean; json?: boolean }): Promise<void> {
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -220,7 +221,7 @@ async function deleteComment(cardNumber: string, commentId: string, options: { a
     });
 
     // Fetch comment details to get preview for confirmation
-    const commentData = await client.get(`cards/${cardNumber}/comments/${commentId}`);
+    const commentData = await client.get(`cards/${options.card}/comments/${commentId}`);
     const comment = parseApiResponse(CommentSchema, commentData, 'comment');
 
     // Confirm deletion
@@ -237,7 +238,7 @@ async function deleteComment(cardNumber: string, commentId: string, options: { a
     }
 
     // Delete the comment
-    await client.delete(`cards/${cardNumber}/comments/${commentId}`);
+    await client.delete(`cards/${options.card}/comments/${commentId}`);
     const format = detectFormat(options);
     if (format === 'json') {
       printOutput({ success: true, message: 'Comment deleted successfully' }, format);
@@ -253,11 +254,11 @@ async function deleteComment(cardNumber: string, commentId: string, options: { a
 /**
  * Add a reaction to a comment
  */
-async function addReaction(cardNumber: string, commentId: string, emoji: string, options: { json?: boolean; account?: string }): Promise<void> {
+async function addReaction(commentId: string, options: { card: string; emoji: string; json?: boolean; account?: string }): Promise<void> {
     // Validate inputs
-    validatePositiveInteger(cardNumber, 'Card number');
+    validatePositiveInteger(options.card, 'Card number');
     validateCommentId(commentId);
-    validateEmoji(emoji);
+    validateEmoji(options.emoji);
   try {
     const auth = await requireAuth({ accountSlug: options.account });
     const client = createClient({
@@ -266,19 +267,19 @@ async function addReaction(cardNumber: string, commentId: string, emoji: string,
     });
 
     // POST returns 201 with no body, so we just confirm success
-    await client.post(`cards/${cardNumber}/comments/${commentId}/reactions`, {
+    await client.post(`cards/${options.card}/comments/${commentId}/reactions`, {
       reaction: {
-        content: emoji,
+        content: options.emoji,
       },
     });
     const format = detectFormat(options);
 
     if (format === 'json') {
-      printOutput({ success: true, content: emoji, commentId }, format);
+      printOutput({ success: true, content: options.emoji, commentId }, format);
     } else {
       console.log(chalk.green('✓ Reaction added successfully'));
       console.log();
-      console.log(`${chalk.bold('Content:')} ${emoji}`);
+      console.log(`${chalk.bold('Content:')} ${options.emoji}`);
       console.log(`${chalk.bold('Comment ID:')} ${commentId}`);
     }
   } catch (error) {
@@ -290,9 +291,9 @@ async function addReaction(cardNumber: string, commentId: string, emoji: string,
 /**
  * Remove a reaction from a comment
  */
-async function removeReaction(cardNumber: string, commentId: string, reactionId: string, options: { account?: string }): Promise<void> {
+async function removeReaction(commentId: string, reactionId: string, options: { card: string; account?: string }): Promise<void> {
     // Validate inputs
-    validatePositiveInteger(cardNumber, 'Card number');
+    validatePositiveInteger(options.card, 'Card number');
     validateCommentId(commentId);
     validateReactionId(reactionId);
   try {
@@ -302,7 +303,7 @@ async function removeReaction(cardNumber: string, commentId: string, reactionId:
       accountSlug: auth.account.account_slug,
     });
 
-    await client.delete(`cards/${cardNumber}/comments/${commentId}/reactions/${reactionId}`);
+    await client.delete(`cards/${options.card}/comments/${commentId}/reactions/${reactionId}`);
     console.log(chalk.green('✓ Reaction removed successfully'));
   } catch (error) {
     printError(error instanceof Error ? error : new Error('Failed to remove reaction'));
@@ -318,7 +319,7 @@ export const commentsCommand = new Command('comments')
   .addCommand(
     new Command('list')
       .description('List comments for a card')
-      .argument('<card-number>', 'Card number')
+      .requiredOption('--card <number>', 'Card number')
       .option('--json', 'Output in JSON format')
       .option('--account <slug>', 'Use specific Fizzy account')
       .action(listComments)
@@ -326,8 +327,8 @@ export const commentsCommand = new Command('comments')
   .addCommand(
     new Command('get')
       .description('Get comment details')
-      .argument('<card-number>', 'Card number')
       .argument('<comment-id>', 'Comment ID')
+      .requiredOption('--card <number>', 'Card number')
       .option('--json', 'Output in JSON format')
       .option('--account <slug>', 'Use specific Fizzy account')
       .action(getComment)
@@ -335,7 +336,7 @@ export const commentsCommand = new Command('comments')
   .addCommand(
     new Command('create')
       .description('Create a new comment')
-      .argument('<card-number>', 'Card number')
+      .requiredOption('--card <number>', 'Card number')
       .requiredOption('--body <text>', 'Comment body')
       .option('--json', 'Output in JSON format')
       .option('--account <slug>', 'Use specific Fizzy account')
@@ -344,8 +345,8 @@ export const commentsCommand = new Command('comments')
   .addCommand(
     new Command('update')
       .description('Update a comment')
-      .argument('<card-number>', 'Card number')
       .argument('<comment-id>', 'Comment ID')
+      .requiredOption('--card <number>', 'Card number')
       .requiredOption('--body <text>', 'Updated comment body')
       .option('--json', 'Output in JSON format')
       .option('--account <slug>', 'Use specific Fizzy account')
@@ -354,8 +355,8 @@ export const commentsCommand = new Command('comments')
   .addCommand(
     new Command('delete')
       .description('Delete a comment')
-      .argument('<card-number>', 'Card number')
       .argument('<comment-id>', 'Comment ID')
+      .requiredOption('--card <number>', 'Card number')
       .option('--json', 'Output in JSON format')
       .option('--account <slug>', 'Use specific Fizzy account')
       .option('--force', 'Skip confirmation prompt', false)
@@ -364,9 +365,9 @@ export const commentsCommand = new Command('comments')
   .addCommand(
     new Command('react')
       .description('Add a reaction to a comment')
-      .argument('<card-number>', 'Card number')
       .argument('<comment-id>', 'Comment ID')
-      .argument('<emoji>', 'Reaction emoji or text')
+      .requiredOption('--card <number>', 'Card number')
+      .requiredOption('--emoji <emoji>', 'Reaction emoji or text')
       .option('--json', 'Output in JSON format')
       .option('--account <slug>', 'Use specific Fizzy account')
       .action(addReaction)
@@ -374,32 +375,32 @@ export const commentsCommand = new Command('comments')
   .addCommand(
     new Command('unreact')
       .description('Remove a reaction from a comment')
-      .argument('<card-number>', 'Card number')
       .argument('<comment-id>', 'Comment ID')
       .argument('<reaction-id>', 'Reaction ID')
+      .requiredOption('--card <number>', 'Card number')
       .option('--account <slug>', 'Use specific Fizzy account')
       .action(removeReaction)
   )
   .addHelpText('after', `
 Examples:
   # List all comments on a card
-  $ fizzy comments list 42
+  $ fizzy comments list --card 42
 
   # Get specific comment
-  $ fizzy comments get 42 comment-id
+  $ fizzy comments get comment-id --card 42
 
   # Create a comment
-  $ fizzy comments create 42 --body "Great work!"
+  $ fizzy comments create --card 42 --body "Great work!"
 
   # Update a comment
-  $ fizzy comments update 42 comment-id --body "Updated comment"
+  $ fizzy comments update comment-id --card 42 --body "Updated comment"
 
   # Delete a comment
-  $ fizzy comments delete 42 comment-id
+  $ fizzy comments delete comment-id --card 42
 
   # Add reaction to comment
-  $ fizzy comments react 42 comment-id "👍"
+  $ fizzy comments react comment-id --card 42 --emoji "👍"
 
   # Remove reaction
-  $ fizzy comments unreact 42 comment-id reaction-id
+  $ fizzy comments unreact comment-id reaction-id --card 42
 `);
