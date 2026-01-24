@@ -114,7 +114,7 @@ async function getComment(commentId: string, options: { card: string; json?: boo
       console.log(chalk.bold.cyan('Comment Details'));
       console.log(chalk.gray('─'.repeat(50)));
       console.log(`${chalk.bold('ID:')} ${comment.id}`);
-      console.log(`${chalk.bold('Creator:')} ${comment.creator.name} (${comment.creator.email_address})`);
+      console.log(`${chalk.bold('Creator:')} ${comment.creator.name}${comment.creator.email_address ? ` (${comment.creator.email_address})` : ''}`);
       console.log(`${chalk.bold('Created:')} ${formatDate(comment.created_at)}`);
       console.log(`${chalk.bold('Updated:')} ${formatDate(comment.updated_at)}`);
       console.log(`${chalk.bold('Reactions URL:')} ${comment.reactions_url}`);

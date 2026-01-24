@@ -350,7 +350,7 @@ export function filterUsers(users: User[], filters: UserFilters): User[] {
     const query = filters.search.toLowerCase();
     filtered = filtered.filter(user =>
       user.name.toLowerCase().includes(query) ||
-      user.email_address.toLowerCase().includes(query)
+      (user.email_address?.toLowerCase().includes(query) ?? false)
     );
   }
 
