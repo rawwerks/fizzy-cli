@@ -21,7 +21,7 @@ export const UserSchema = z.object({
   name: z.string(),
   role: z.enum(['owner', 'admin', 'member', 'system']),
   active: z.boolean(),
-  email_address: z.string(),
+  email_address: z.string().nullable(),
   created_at: z.string(),
   url: z.string(),
 });

@@ -38,7 +38,8 @@ function createListCommand(): Command {
     .option('--json', 'Output in JSON format')
     .option('--account <slug>', 'Use specific Fizzy account')
     .action(async (options: { board: string } & GlobalOptions) => {
-      const spinner = startSpinner('Fetching columns...');
+      const format = detectFormat(options);
+      const spinner = format === 'json' ? null : startSpinner('Fetching columns...');
 
       try {
         const auth = await requireAuth({ accountSlug: options.account });
@@ -56,9 +57,7 @@ function createListCommand(): Command {
           parseApiResponse(ColumnSchema, col, 'column')
         );
 
-        spinner.succeed(`Found ${columns.length} column(s)`);
-
-        const format = detectFormat(options);
+        if (spinner) spinner.succeed(`Found ${columns.length} column(s)`);
 
         if (format === 'json') {
           printOutput(columns, format);
@@ -77,7 +76,7 @@ function createListCommand(): Command {
           });
         }
       } catch (error) {
-        spinner.fail('Failed to fetch columns');
+        if (spinner) spinner.fail('Failed to fetch columns');
         printError(error instanceof Error ? error : new Error('Failed to fetch columns'));
         process.exit(1);
       }
