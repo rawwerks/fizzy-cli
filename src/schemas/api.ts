@@ -21,7 +21,7 @@ export const UserSchema = z.object({
   name: z.string(),
   role: z.enum(['owner', 'admin', 'member', 'system']),
   active: z.boolean(),
-  email_address: z.string(),
+  email_address: z.string().nullable().optional(),
   created_at: z.string(),
   url: z.string(),
 });
@@ -191,7 +191,7 @@ export const ColumnSchema = z.object({
   id: z.string(),
   name: z.string(),
   color: z.string(), // API returns CSS variable string like "var(--color-card-default)"
-  created_at: z.string(),
+  created_at: z.string().optional(),
 });
 export type Column = z.infer<typeof ColumnSchema>;
 
