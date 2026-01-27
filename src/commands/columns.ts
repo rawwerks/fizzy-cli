@@ -3,6 +3,7 @@
  */
 
 import { Command } from 'commander';
+import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { createClient } from '../lib/api/client.js';
 import { ColumnSchema, parseApiResponse } from '../schemas/api.js';
@@ -52,8 +53,10 @@ function createListCommand(): Command {
           `/boards/${options.board}/columns`
         );
 
-        const columns = rawColumns.map((col) =>
-          parseApiResponse(ColumnSchema, col, 'column')
+        const columns = parseApiResponse(
+          z.array(ColumnSchema),
+          rawColumns,
+          'columns list'
         );
 
         spinner.succeed(`Found ${columns.length} column(s)`);
