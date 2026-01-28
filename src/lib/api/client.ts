@@ -365,6 +365,7 @@ export class FizzyClient {
 
         // Handle empty responses (201 Created, 204 No Content)
         const contentLength = response.headers.get('Content-Length');
+        const contentType = response.headers.get('Content-Type');
         let data: T;
 
         if (contentLength === '0' || response.status === 204) {
@@ -378,7 +379,17 @@ export class FizzyClient {
             data = null as T;
           }
         } else {
-          data = await response.json() as T;
+          // Check if response body is empty before parsing JSON
+          const text = await response.text();
+          if (!text || text.trim() === '') {
+            data = null as T;
+          } else {
+            try {
+              data = JSON.parse(text) as T;
+            } catch (error) {
+              throw new Error(`Failed to parse JSON response: ${error instanceof Error ? error.message : 'Unknown error'}. Response body: ${text.substring(0, 200)}`);
+            }
+          }
         }
 
         // Store in cache if ETag is present
