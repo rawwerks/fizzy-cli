@@ -382,7 +382,9 @@ export class FizzyClient {
           // Check if response body is empty before parsing JSON
           const text = await response.text();
           if (!text || text.trim() === '') {
-            data = null as T;
+            // For successful responses with empty body, return empty array for list endpoints
+            // This handles cases where the API returns 200 OK with no content for empty lists
+            data = (method === 'GET' && response.status === 200 ? [] : null) as T;
           } else {
             try {
               data = JSON.parse(text) as T;
