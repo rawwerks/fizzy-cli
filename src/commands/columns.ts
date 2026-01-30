@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { createClient } from '../lib/api/client.js';
-import { ColumnSchema, parseApiResponse } from '../schemas/api.js';
+import { ColumnSchema, ColumnsListResponseSchema, parseApiResponse } from '../schemas/api.js';
 import {
   printOutput,
   printError,
