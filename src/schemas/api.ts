@@ -195,6 +195,15 @@ export const ColumnSchema = z.object({
 });
 export type Column = z.infer<typeof ColumnSchema>;
 
+/**
+ * Columns list response - wraps array of columns
+ * Source: API.md - GET /boards/:id/columns
+ */
+export const ColumnsListResponseSchema = z.object({
+  columns: z.array(ColumnSchema),
+});
+export type ColumnsListResponse = z.infer<typeof ColumnsListResponseSchema>;
+
 // =============================================================================
 // Notification
 // =============================================================================
