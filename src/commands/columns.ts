@@ -49,15 +49,16 @@ function createListCommand(): Command {
           baseUrl: options.baseUrl,
         });
 
-        const rawColumns = await client.get<Column[]>(
+        const rawResponse = await client.get<{ columns: Column[] }>(
           `/boards/${options.board}/columns`
         );
 
-        const columns = parseApiResponse(
-          z.array(ColumnSchema),
-          rawColumns,
+        const response = parseApiResponse(
+          ColumnsListResponseSchema,
+          rawResponse,
           'columns list'
         );
+        const columns = response.columns;
 
         spinner.succeed(`Found ${columns.length} column(s)`);
 
