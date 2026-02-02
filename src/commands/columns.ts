@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { createClient } from '../lib/api/client.js';
-import { ColumnSchema, parseApiResponse } from '../schemas/api.js';
+import { ColumnSchema, ColumnsListResponseSchema, parseApiResponse } from '../schemas/api.js';
 import {
   printOutput,
   printError,
@@ -49,15 +49,17 @@ function createListCommand(): Command {
           baseUrl: options.baseUrl,
         });
 
-        const rawResponse = await client.get<Column[]>(
+        const rawResponse = await client.get(
           `/boards/${options.board}/columns`
         );
 
-        const columns = parseApiResponse(
-          z.array(ColumnSchema),
+        const response = parseApiResponse(
+          ColumnsListResponseSchema,
           rawResponse,
           'columns list'
         );
+
+        const columns = response.columns;
 
         spinner.succeed(`Found ${columns.length} column(s)`);
 
