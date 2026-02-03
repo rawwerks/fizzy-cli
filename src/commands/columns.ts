@@ -53,9 +53,14 @@ function createListCommand(): Command {
           `/boards/${options.board}/columns`
         );
 
+        // Handle empty response by wrapping it in expected format
+        const wrappedResponse = Array.isArray(rawResponse)
+          ? { columns: rawResponse }
+          : rawResponse;
+
         const response = parseApiResponse(
           ColumnsListResponseSchema,
-          rawResponse,
+          wrappedResponse,
           'columns list'
         );
 
