@@ -49,12 +49,20 @@ function createListCommand(): Command {
           baseUrl: options.baseUrl,
         });
 
-        const rawResponse = await client.get<{ columns: Column[] }>(
+        const rawResponse = await client.get<{ columns: Column[] } | Column[]>(
           `/boards/${options.board}/columns`
         );
 
-        const response = parseApiResponse(ColumnsListResponseSchema, rawResponse, 'columns list');
-        const columns = response.columns;
+        // Handle both wrapped and unwrapped responses
+        let columns: Column[];
+        if (Array.isArray(rawResponse)) {
+          // API returned array directly (empty response case)
+          columns = rawResponse;
+        } else {
+          // API returned wrapped response
+          const response = parseApiResponse(ColumnsListResponseSchema, rawResponse, 'columns list');
+          columns = response.columns;
+        }
 
         spinner.succeed(`Found ${columns.length} column(s)`);
 
