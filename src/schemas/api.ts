@@ -190,9 +190,9 @@ export type Tag = z.infer<typeof TagSchema>;
 export const ColumnSchema = z.object({
   id: z.string(),
   name: z.string(),
-  color: z.string(), // API returns CSS variable string like "var(--color-card-default)"
-  created_at: z.string().optional(),
-});
+  color: z.string().nullable().optional(), // API returns CSS variable string like "var(--color-card-default)"
+  created_at: z.string().nullable().optional(),
+}).passthrough(); // Allow additional fields from API
 export type Column = z.infer<typeof ColumnSchema>;
 
 /**
