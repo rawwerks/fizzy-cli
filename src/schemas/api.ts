@@ -192,6 +192,9 @@ export const ColumnSchema = z.object({
   name: z.string(),
   color: z.string().nullable().optional(), // API returns CSS variable string like "var(--color-card-default)"
   created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(), // API may include updated_at timestamp
+  url: z.string().optional(), // API may include URL field
+  position: z.number().optional(), // API may include position/order field
 }).passthrough(); // Allow additional fields from API
 export type Column = z.infer<typeof ColumnSchema>;
 
