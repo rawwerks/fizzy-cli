@@ -116,10 +116,12 @@ function createGetCommand(): Command {
           baseUrl: options.baseUrl,
         });
 
-        const rawColumn = await client.get<Column>(
+        const rawResponse = await client.get<Column | { column: Column }>(
           `/boards/${options.board}/columns/${id}`
         );
 
+        // Handle both response formats: { column: {...} } and {...}
+        const rawColumn = 'column' in rawResponse && rawResponse.column ? rawResponse.column : rawResponse;
         const column = parseApiResponse(ColumnSchema, rawColumn, 'column details');
 
         spinner.succeed('Column details fetched');
@@ -183,11 +185,13 @@ function createCreateCommand(): Command {
           requestBody.column.color = options.color;
         }
 
-        const rawColumn = await client.post<Column>(
+        const rawResponse = await client.post<Column | { column: Column }>(
           `/boards/${options.board}/columns`,
           requestBody
         );
 
+        // Handle both response formats: { column: {...} } and {...}
+        const rawColumn = 'column' in rawResponse && rawResponse.column ? rawResponse.column : rawResponse;
         const column = parseApiResponse(ColumnSchema, rawColumn, 'created column');
 
         spinner.succeed('Column created successfully');
@@ -268,10 +272,12 @@ function createUpdateCommand(): Command {
         );
 
         // Fetch the updated column
-        const rawColumn = await client.get<Column>(
+        const rawResponse = await client.get<Column | { column: Column }>(
           `/boards/${options.board}/columns/${id}`
         );
 
+        // Handle both response formats: { column: {...} } and {...}
+        const rawColumn = 'column' in rawResponse && rawResponse.column ? rawResponse.column : rawResponse;
         const column = parseApiResponse(ColumnSchema, rawColumn, 'updated column');
 
         spinner.succeed('Column updated successfully');
@@ -328,9 +334,12 @@ function createDeleteCommand(): Command {
         });
 
         // Fetch column details to get the name for confirmation
-        const rawColumn = await client.get<Column>(
+        const rawResponse = await client.get<Column | { column: Column }>(
           `/boards/${options.board}/columns/${id}`
         );
+
+        // Handle both response formats: { column: {...} } and {...}
+        const rawColumn = 'column' in rawResponse && rawResponse.column ? rawResponse.column : rawResponse;
         const column = parseApiResponse(ColumnSchema, rawColumn, 'column details');
 
         if (spinner) spinner.succeed(`Found column: ${column.name}`);
