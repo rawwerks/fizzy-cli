@@ -121,7 +121,17 @@ function createGetCommand(): Command {
         );
 
         // Handle both response formats: { column: {...} } and {...}
+        // Also handle empty/null responses
+        if (!rawResponse || typeof rawResponse !== 'object' || Array.isArray(rawResponse)) {
+          throw new Error(`Column ${id} not found or returned invalid data`);
+        }
+
         const rawColumn = 'column' in rawResponse && rawResponse.column ? rawResponse.column : rawResponse;
+
+        if (!rawColumn || typeof rawColumn !== 'object' || !('id' in rawColumn)) {
+          throw new Error(`Column ${id} not found or returned invalid data`);
+        }
+
         const column = parseApiResponse(ColumnSchema, rawColumn, 'column details');
 
         spinner.succeed('Column details fetched');
@@ -191,7 +201,29 @@ function createCreateCommand(): Command {
         );
 
         // Handle both response formats: { column: {...} } and {...}
-        const rawColumn = 'column' in rawResponse && rawResponse.column ? rawResponse.column : rawResponse;
+        // Also handle null/undefined responses by fetching the created column
+        let rawColumn: unknown = null;
+
+        if (rawResponse && typeof rawResponse === 'object' && !Array.isArray(rawResponse)) {
+          rawColumn = 'column' in rawResponse && rawResponse.column ? rawResponse.column : rawResponse;
+        }
+
+        // If we didn't get a valid response, the column was created but we need to list columns to find it
+        // This is a workaround for APIs that return 204 No Content
+        if (!rawColumn || typeof rawColumn !== 'object' || !('id' in rawColumn)) {
+          spinner.info('Column created, fetching details...');
+          const listResponse = await client.get<{ columns: Column[] } | Column[]>(
+            `/boards/${options.board}/columns`
+          );
+          const columns: Column[] = Array.isArray(listResponse) ? listResponse : listResponse.columns;
+          // Find the column we just created by name
+          const createdColumn = columns.find(c => c.name === options.name);
+          if (!createdColumn) {
+            throw new Error('Column created but could not retrieve its details');
+          }
+          rawColumn = createdColumn;
+        }
+
         const column = parseApiResponse(ColumnSchema, rawColumn, 'created column');
 
         spinner.succeed('Column created successfully');
@@ -277,7 +309,17 @@ function createUpdateCommand(): Command {
         );
 
         // Handle both response formats: { column: {...} } and {...}
+        // Also handle empty/null responses
+        if (!rawResponse || typeof rawResponse !== 'object' || Array.isArray(rawResponse)) {
+          throw new Error(`Column ${id} not found after update or returned invalid data`);
+        }
+
         const rawColumn = 'column' in rawResponse && rawResponse.column ? rawResponse.column : rawResponse;
+
+        if (!rawColumn || typeof rawColumn !== 'object' || !('id' in rawColumn)) {
+          throw new Error(`Column ${id} not found after update or returned invalid data`);
+        }
+
         const column = parseApiResponse(ColumnSchema, rawColumn, 'updated column');
 
         spinner.succeed('Column updated successfully');
@@ -339,7 +381,17 @@ function createDeleteCommand(): Command {
         );
 
         // Handle both response formats: { column: {...} } and {...}
+        // Also handle empty/null responses
+        if (!rawResponse || typeof rawResponse !== 'object' || Array.isArray(rawResponse)) {
+          throw new Error(`Column ${id} not found or returned invalid data`);
+        }
+
         const rawColumn = 'column' in rawResponse && rawResponse.column ? rawResponse.column : rawResponse;
+
+        if (!rawColumn || typeof rawColumn !== 'object' || !('id' in rawColumn)) {
+          throw new Error(`Column ${id} not found or returned invalid data`);
+        }
+
         const column = parseApiResponse(ColumnSchema, rawColumn, 'column details');
 
         if (spinner) spinner.succeed(`Found column: ${column.name}`);
