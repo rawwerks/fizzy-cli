@@ -366,12 +366,12 @@ export class FizzyClient {
         // Handle empty responses (201 Created, 204 No Content)
         const contentLength = response.headers.get('Content-Length');
         const contentType = response.headers.get('Content-Type');
+        const location = response.headers.get('Location');
         let data: T;
 
         if (contentLength === '0' || response.status === 204) {
-          // For 201 with Location header, fetch the created resource
-          const location = response.headers.get('Location');
-          if (response.status === 201 && location) {
+          // For 201/200 with Location header, fetch the created resource
+          if ((response.status === 201 || response.status === 200) && location) {
             // Follow Location header to get created resource
             const createdResponse = await this.get<T>(location);
             data = createdResponse;
@@ -382,9 +382,8 @@ export class FizzyClient {
           // Check if response body is empty before parsing JSON
           const text = await response.text();
           if (!text || text.trim() === '') {
-            // For 200 with Location header (some APIs use this for creates), follow the location
-            const location = response.headers.get('Location');
-            if (response.status === 200 && location && (method === 'POST' || method === 'PUT')) {
+            // For POST/PUT with Location header (some APIs use this for creates), follow the location
+            if (location && (method === 'POST' || method === 'PUT')) {
               const createdResponse = await this.get<T>(location);
               data = createdResponse;
             } else if (method === 'GET' && response.status === 200) {
@@ -394,10 +393,24 @@ export class FizzyClient {
               data = null as T;
             }
           } else {
-            try {
-              data = JSON.parse(text) as T;
-            } catch (error) {
-              throw new Error(`Failed to parse JSON response: ${error instanceof Error ? error.message : 'Unknown error'}. Response body: ${text.substring(0, 200)}`);
+            // Only try to parse as JSON if Content-Type indicates JSON or if we have text
+            const isJson = contentType?.includes('application/json') || text.startsWith('{') || text.startsWith('[');
+
+            if (!isJson) {
+              // Non-JSON response, return text as-is (cast to T)
+              data = text as T;
+            } else {
+              try {
+                data = JSON.parse(text) as T;
+              } catch (error) {
+                // If JSON parsing fails, check for Location header as fallback
+                if (location && (method === 'POST' || method === 'PUT')) {
+                  const createdResponse = await this.get<T>(location);
+                  data = createdResponse;
+                } else {
+                  throw new Error(`Failed to parse JSON response: ${error instanceof Error ? error.message : 'Unknown error'}. Response body: ${text.substring(0, 200)}`);
+                }
+              }
             }
           }
         }
