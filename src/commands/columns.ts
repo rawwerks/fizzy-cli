@@ -74,7 +74,7 @@ function createListCommand(): Command {
           const tableData = columns.map((column) => ({
             ID: column.id,
             Name: column.name,
-            Color: column.color,
+            Color: typeof column.color === 'object' && column.color !== null ? column.color.name || column.color.value : column.color,
             'Created At': column.created_at,
           }));
 
@@ -145,7 +145,7 @@ function createGetCommand(): Command {
           const tableData = {
             ID: column.id,
             Name: column.name,
-            Color: column.color,
+            Color: typeof column.color === 'object' && column.color !== null ? column.color.name || column.color.value : column.color,
             'Created At': column.created_at,
           };
 
@@ -238,7 +238,7 @@ function createCreateCommand(): Command {
           const tableData = {
             ID: column.id,
             Name: column.name,
-            Color: column.color,
+            Color: typeof column.color === 'object' && column.color !== null ? column.color.name || column.color.value : column.color,
             'Created At': column.created_at,
           };
 
@@ -334,7 +334,7 @@ function createUpdateCommand(): Command {
           const tableData = {
             ID: column.id,
             Name: column.name,
-            Color: column.color,
+            Color: typeof column.color === 'object' && column.color !== null ? column.color.name || column.color.value : column.color,
             'Created At': column.created_at,
           };
 
