@@ -184,13 +184,21 @@ export type Tag = z.infer<typeof TagSchema>;
 // =============================================================================
 
 /**
+ * Color object for columns
+ */
+export const ColorSchema = z.object({
+  name: z.string(),
+  value: z.string(),
+}).passthrough();
+
+/**
  * Column object - represents workflow stages on a board
  * Source: API.md - Columns section
  */
 export const ColumnSchema = z.object({
   id: z.string(),
   name: z.string(),
-  color: z.string().nullish(), // API returns CSS variable string like "var(--color-card-default)", or null/undefined
+  color: z.union([ColorSchema, z.string()]).nullish(), // API returns color as object {name, value} or string, or null/undefined
   created_at: z.string().nullish(), // created_at may not always be present or may be null
   updated_at: z.string().nullish(), // API may include updated_at timestamp or null
   url: z.string().nullish(), // API may include URL field or null
