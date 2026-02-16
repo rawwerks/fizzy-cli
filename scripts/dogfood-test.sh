@@ -425,7 +425,7 @@ fi
 
 if [ -n "$BOARD_ID" ]; then
     echo "  Creating card with image..."
-    TEST_CARD_WITH_IMG=$(eval "$CLI cards create --board '$BOARD_ID' --title 'Card with Image (Dogfood)' --image '$TEST_IMAGE' --json 2>/dev/null | bun -e 'const data = await Bun.file("/dev/stdin").json(); console.log(data.number || "")'")
+    TEST_CARD_WITH_IMG=$(eval "$CLI cards create --board '$BOARD_ID' --title 'Card with Image (Dogfood)' --image '$TEST_IMAGE' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.number || \"\")'")
 
     if [ -n "$TEST_CARD_WITH_IMG" ]; then
         echo "  Upload card image (create)... ✅"
