@@ -137,7 +137,7 @@ export async function requireAuth(options: RequireAuthOptions = {}): Promise<Aut
 
   // Build the account base URL
   const baseUrl = process.env.FIZZY_BASE_URL || 'https://app.fizzy.do';
-  const accountBaseUrl = `${baseUrl.replace(/\/$/, '')}/${account.account_slug}`;
+  const accountBaseUrl = `${baseUrl.replace(/\/$/, '')}/${account.account_slug.replace(/^\//, '')}`;
 
   return {
     account,
