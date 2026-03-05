@@ -133,7 +133,7 @@ export class FizzyClient {
 
   constructor(options: ClientOptions) {
     this.auth = options.auth;
-    this.accountSlug = options.accountSlug;
+    this.accountSlug = options.accountSlug.replace(/^\//, '');
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
     this.userAgent = options.userAgent ?? 'fizzy-cli';
     this.cache = new Map();
