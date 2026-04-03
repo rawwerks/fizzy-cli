@@ -691,7 +691,9 @@ export class FizzyClient {
 
 /**
  * Create a new Fizzy client
+ * Automatically reads FIZZY_BASE_URL from the environment if baseUrl is not provided
  */
 export function createClient(options: ClientOptions): FizzyClient {
-  return new FizzyClient(options);
+  const baseUrl = options.baseUrl ?? process.env.FIZZY_BASE_URL ?? DEFAULT_BASE_URL;
+  return new FizzyClient({ ...options, baseUrl });
 }
