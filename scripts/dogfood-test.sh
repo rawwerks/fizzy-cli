@@ -157,10 +157,24 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Boards (5/5 endpoints)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-test_cmd "List boards" boards list --json || true
+# List boards once and capture output for both test reporting and ID extraction
+echo -n "  List boards... "
+if BOARDS_JSON=$(eval "$CLI boards list --json 2>/dev/null"); then
+  echo "✅"
+  ((PASSED++))
+else
+  echo "❌"
+  FAILED_TESTS+=("List boards: command failed")
+  ((FAILED++))
+  BOARDS_JSON="[]"
+fi
 
-# Get first board ID for subsequent tests
-BOARD_ID=$(eval "$CLI boards list --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data[0]?.id || \"\")'")
+# Extract first board ID from the captured output (no duplicate API call)
+BOARD_ID=$(echo "$BOARDS_JSON" | bun -e '
+  const text = await new Response(Bun.stdin).text();
+  try { const data = JSON.parse(text || "[]"); console.log(data[0]?.id || ""); }
+  catch(e) { console.log(""); }
+' 2>/dev/null) || BOARD_ID=""
 
 if [ -n "$BOARD_ID" ]; then
     test_cmd "Get board details" boards get "$BOARD_ID" --json || true
@@ -168,7 +182,11 @@ if [ -n "$BOARD_ID" ]; then
 
     # Test board creation and deletion
     echo "  Creating test board for delete test... "
-    TEST_BOARD_ID=$(eval "$CLI boards create --name 'Dogfood Test Board' --json 2>/dev/null | bun -e 'const data = await Bun.file(\"/dev/stdin\").json(); console.log(data.id || \"\")'")
+    TEST_BOARD_ID=$(eval "$CLI boards create --name 'Dogfood Test Board' --json 2>/dev/null | bun -e '
+      const text = await new Response(Bun.stdin).text();
+      try { const data = JSON.parse(text || "{}"); console.log(data.id || ""); }
+      catch(e) { console.log(""); }
+    '" 2>/dev/null) || TEST_BOARD_ID=""
     if [ -n "$TEST_BOARD_ID" ]; then
         test_cmd "Delete board" boards delete "$TEST_BOARD_ID" --json || true
     else
