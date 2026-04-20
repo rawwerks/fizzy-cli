@@ -105,7 +105,7 @@ test_cmd() {
 
     if $CLI "$@" > "$output_file" 2>&1; then
         echo "✅"
-        ((PASSED++))
+        ((PASSED += 1))
         rm -f "$output_file"
         return 0
     else
@@ -116,12 +116,12 @@ test_cmd() {
         if grep -q -i "unknown command\|not found\|not implemented\|no such command" "$output_file" 2>/dev/null; then
             echo "⚠️  NOT IMPLEMENTED"
             MISSING_COMMANDS+=("$name")
-            ((MISSING_FEATURES++))
+            ((MISSING_FEATURES += 1))
         else
             echo "❌"
             echo "     Error: $error_msg"
             FAILED_TESTS+=("$name: $error_msg")
-            ((FAILED++))
+            ((FAILED += 1))
         fi
 
         rm -f "$output_file"
@@ -134,8 +134,8 @@ skip_test() {
     local name="$1"
     echo "  $name... ⏭️  SKIPPED (known missing feature)"
     MISSING_COMMANDS+=("$name")
-    ((SKIPPED++))
-    ((MISSING_FEATURES++))
+    ((SKIPPED += 1))
+    ((MISSING_FEATURES += 1))
 }
 
 echo "🧪 Running comprehensive dogfooding tests..."
@@ -161,11 +161,11 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo -n "  List boards... "
 if BOARDS_JSON=$(eval "$CLI boards list --json 2>/dev/null"); then
   echo "✅"
-  ((PASSED++))
+  ((PASSED += 1))
 else
   echo "❌"
   FAILED_TESTS+=("List boards: command failed")
-  ((FAILED++))
+  ((FAILED += 1))
   BOARDS_JSON="[]"
 fi
 
@@ -191,7 +191,7 @@ if [ -n "$BOARD_ID" ]; then
         test_cmd "Delete board" boards delete "$TEST_BOARD_ID" --json || true
     else
         echo "❌ (failed to create test board)"
-        ((FAILED++))
+        ((FAILED += 1))
     fi
 else
     echo "  ⚠️  No boards found, skipping board-specific tests"
@@ -447,7 +447,7 @@ if [ -n "$BOARD_ID" ]; then
 
     if [ -n "$TEST_CARD_WITH_IMG" ]; then
         echo "  Upload card image (create)... ✅"
-        ((PASSED++))
+        ((PASSED += 1))
 
         # Test updating card image
         test_cmd "Upload card image (update)" cards update "$TEST_CARD_WITH_IMG" --image "$TEST_IMAGE" --json || true
@@ -456,7 +456,7 @@ if [ -n "$BOARD_ID" ]; then
         eval "$CLI cards delete '$TEST_CARD_WITH_IMG' --json > /dev/null 2>&1" || true
     else
         echo "  Upload card image (create)... ❌"
-        ((FAILED++))
+        ((FAILED += 1))
         skip_test "Upload card image (update)" # Cannot test without create working
     fi
 else
