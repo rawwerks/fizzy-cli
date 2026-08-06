@@ -13,6 +13,7 @@ import {
   ApiError,
   RateLimitError,
   AuthenticationError,
+  AuthorizationError,
   NotFoundError,
   ValidationError,
 } from './errors.js';
@@ -433,6 +434,7 @@ export class FizzyClient {
         // Don't retry auth errors or client errors (non-retryable ApiErrors)
         if (
           error instanceof AuthenticationError ||
+          error instanceof AuthorizationError ||
           error instanceof NotFoundError ||
           error instanceof ValidationError ||
           (error instanceof ApiError && !this.isRetryableError(error.status))
@@ -480,6 +482,12 @@ export class FizzyClient {
 
       case 401:
         throw new AuthenticationError('Unauthorized: Authentication failed or session expired', responseBody);
+
+      case 403:
+        throw new AuthorizationError(
+          'Forbidden: Your token is invalid, expired, lacks permission for this account, or the request was blocked upstream. Try re-authenticating with `fizzy login`.',
+          responseBody
+        );
 
       case 404:
         throw new NotFoundError('Not Found: The requested resource does not exist', responseBody);
