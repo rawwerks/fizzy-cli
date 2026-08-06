@@ -62,6 +62,21 @@ export class AuthenticationError extends ApiError {
 }
 
 /**
+ * Error for 403 Forbidden responses
+ *
+ * Distinct from AuthenticationError (401): the request was understood but the
+ * caller is not permitted to access the resource. Common causes are an
+ * invalid/expired token, a token that lacks permission for the target account,
+ * or the request being rejected by an upstream WAF/CDN (e.g. Cloudflare).
+ */
+export class AuthorizationError extends ApiError {
+  constructor(message: string = 'Forbidden', responseBody?: unknown) {
+    super(403, message, responseBody);
+    this.name = 'AuthorizationError';
+  }
+}
+
+/**
  * Error for 404 Not Found responses
  */
 export class NotFoundError extends ApiError {
